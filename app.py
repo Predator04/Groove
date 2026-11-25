@@ -17,7 +17,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.13.0"
+VERSION = "2.14.0"
 BUILD_DATE = "2026-11-15"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -1567,6 +1567,32 @@ def api_backup_restore():
     return jsonify(restored=restored)
 
 
+def _find_free_port(start=8813, tries=40):
+    for p in range(start, start + tries):
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.bind(("0.0.0.0", p))
+            s.close()
+            return p
+        except OSError:
+            s.close()
+            continue
+    return 8813
+
+
 if __name__ == "__main__":
+    _port = int(os.environ.get("PORT", "0") or "0")
+    if _port <= 0:
+        _port = _find_free_port()
     threading.Thread(target=_scheduler_loop, daemon=True).start()
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8813)), debug=False)
+
+    def _open_browser():
+        try:
+            import webbrowser
+            webbrowser.open(f"http://localhost:{_port}/layout")
+        except Exception:
+            pass
+
+    threading.Timer(1.5, _open_browser).start()
+    print(f"Groove is running -> http://localhost:{_port}/layout")
+    app.run(host="0.0.0.0", port=_port, debug=False)
