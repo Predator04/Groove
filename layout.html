@@ -80,6 +80,7 @@
   <button class="off" onclick="stopChase()">Stop</button>
   <button class="off" id="linkBtn" onclick="toggleLinkMode()">🔗 Set order</button>
   <button class="off" onclick="surprise()">🎲 Surprise</button>
+  <button class="off" onclick="openSched()">⏰ Schedule</button>
 </header>
 
 <div id="yard">
@@ -93,6 +94,19 @@
   <input type="range" id="bright" min="1" max="100" value="100" oninput="setBright(this.value)">
   <span id="pname" style="font-size:12px"></span>
   <button class="small off" onclick="document.getElementById('panel').style.display='none'">✕</button>
+</div>
+
+<div id="schedModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:200; align-items:center; justify-content:center;">
+  <div style="background:#12172a; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:20px; width:min(480px,92vw);">
+    <h3 style="margin:0 0 4px;">⏰ Schedule an effect</h3>
+    <div style="font-size:11px;color:#8b95b0;margin-bottom:12px;">Uses whatever effect + colors + speed you currently have selected.</div>
+    <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+      <input type="time" id="schedTime" style="background:#0c101c;border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:8px;color:#e8ecf5;">
+      <button onclick="addSchedule()">Add</button>
+    </div>
+    <div id="schedList" style="display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow:auto;"></div>
+    <button class="off small" style="margin-top:14px;" onclick="document.getElementById('schedModal').style.display='none'">Close</button>
+  </div>
 </div>
 
 <script>
@@ -366,6 +380,43 @@ function surprise(){
   document.getElementById('speed').value = step;
   spdLbl.textContent = step + 'ms';
   stopChase().then(() => toggleEffect());
+}
+
+// ---- scheduler ----
+function openSched(){
+  document.getElementById('schedModal').style.display = 'flex';
+  loadSchedules();
+}
+async function loadSchedules(){
+  try{
+    const r = await fetch('/api/schedules'); const list = await r.json();
+    const el = document.getElementById('schedList');
+    el.innerHTML = (list.length ? list.map(s => `
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:7px 10px;background:rgba(255,255,255,.04);border-radius:9px;">
+        <span style="${s.enabled?'':'opacity:.4;text-decoration:line-through'}">${s.time} · ${s.name || s.effect}</span>
+        <span style="flex:1"></span>
+        <button class="small" onclick="toggleSched('${s.id}')">${s.enabled?'off':'on'}</button>
+        <button class="small off" onclick="delSched('${s.id}')">✕</button>
+      </div>`).join('') : '<span style="font-size:12px;color:#8b95b0">no schedules yet</span>');
+  }catch(e){}
+}
+async function addSchedule(){
+  const t = document.getElementById('schedTime').value;
+  if(!t){ return; }
+  const effect = document.getElementById('effectSel').value;
+  const step = parseInt(document.getElementById('speed').value);
+  await fetch('/api/schedules', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({time:t, effect, colors:palette, step_ms:step})});
+  document.getElementById('schedTime').value = '';
+  loadSchedules();
+}
+async function delSched(id){
+  await fetch('/api/schedules/'+id, {method:'DELETE'});
+  loadSchedules();
+}
+async function toggleSched(id){
+  await fetch('/api/schedules/'+id+'/toggle', {method:'POST'});
+  loadSchedules();
 }
 
 load();

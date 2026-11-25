@@ -549,9 +549,18 @@ def api_lan_control():
     return jsonify(ok=True)
 
 
+def start_effect(ips, effect, colors, step_ms):
+    global _effect_thread
+    _effect_stop.set()
+    if _effect_thread and _effect_thread.is_alive():
+        _effect_thread.join(timeout=2)
+    _effect_stop.clear()
+    _effect_thread = threading.Thread(target=_run_effect, args=(ips, effect, colors, step_ms), daemon=True)
+    _effect_thread.start()
+
+
 @app.route("/api/effect/start", methods=["POST"])
 def api_effect_start():
-    global _effect_thread
     body = request.get_json(force=True) or {}
     ips = body.get("ips") or []
     effect = body.get("effect", "chase")
@@ -559,12 +568,7 @@ def api_effect_start():
     step_ms = int(body.get("step_ms", 400))
     if not ips:
         return jsonify(error="ips is required"), 400
-    _effect_stop.set()
-    if _effect_thread and _effect_thread.is_alive():
-        _effect_thread.join(timeout=2)
-    _effect_stop.clear()
-    _effect_thread = threading.Thread(target=_run_effect, args=(ips, effect, colors, step_ms), daemon=True)
-    _effect_thread.start()
+    start_effect(ips, effect, colors, step_ms)
     return jsonify(started=True, effect=effect, ips=len(ips), step_ms=step_ms)
 
 
@@ -758,6 +762,95 @@ def api_setup():
     return jsonify(saved=True, api_key=bool(key), bulbs=len(LAN_MAP))
 
 
+# ---- scheduler (run an effect at a set time) ----
+def _ordered_ips():
+    entries = []
+    for device_id, ip in LAN_MAP.items():
+        pos = LAYOUT.get(device_id) or {}
+        entries.append((pos.get("order"), pos.get("x", 0.5), ip))
+    if entries and all(e[0] is not None for e in entries):
+        entries.sort(key=lambda e: e[0])
+    else:
+        entries.sort(key=lambda e: e[1])
+    return [e[2] for e in entries]
+
+
+SCHEDULES = _load_json("schedules.json", [])
+
+
+def _save_schedules():
+    _write_json(os.path.join(os.path.dirname(os.path.abspath(__file__)), "schedules.json"), SCHEDULES)
+
+
+def _scheduler_loop():
+    last_fired = {}
+    while True:
+        try:
+            now = time.localtime()
+            hm = f"{now.tm_hour:02d}:{now.tm_min:02d}"
+            ymd_hm = f"{now.tm_year}-{now.tm_mon:02d}-{now.tm_mday:02d} {hm}"
+            wd = now.tm_wday
+            for sch in list(SCHEDULES):
+                if not sch.get("enabled", True): continue
+                if sch.get("time") != hm: continue
+                days = sch.get("days")
+                if days and wd not in days: continue
+                sid = sch.get("id", "")
+                if last_fired.get(sid) == ymd_hm: continue
+                last_fired[sid] = ymd_hm
+                ips = _ordered_ips()
+                if ips:
+                    start_effect(ips, sch.get("effect", "chase"),
+                                 sch.get("colors", [[255, 0, 0]]),
+                                 int(sch.get("step_ms", 400)))
+        except Exception:
+            pass
+        time.sleep(20)
+
+
+@app.route("/api/schedules", methods=["GET"])
+def api_schedules():
+    return jsonify(SCHEDULES)
+
+
+@app.route("/api/schedules", methods=["POST"])
+def api_schedules_add():
+    body = request.get_json(force=True) or {}
+    sch = {
+        "id": body.get("id") or f"sch{int(time.time()*1000)}",
+        "time": body.get("time", ""),
+        "days": body.get("days"),
+        "effect": body.get("effect", "chase"),
+        "colors": body.get("colors", [[255, 0, 0]]),
+        "step_ms": int(body.get("step_ms", 400)),
+        "name": body.get("name", ""),
+        "enabled": True,
+    }
+    if not sch["time"]:
+        return jsonify(error="time (HH:MM) is required"), 400
+    SCHEDULES.append(sch)
+    _save_schedules()
+    return jsonify(saved=True, schedule=sch)
+
+
+@app.route("/api/schedules/<sid>", methods=["DELETE"])
+def api_schedules_del(sid):
+    global SCHEDULES
+    SCHEDULES = [s for s in SCHEDULES if s.get("id") != sid]
+    _save_schedules()
+    return jsonify(deleted=True)
+
+
+@app.route("/api/schedules/<sid>/toggle", methods=["POST"])
+def api_schedules_toggle(sid):
+    for s in SCHEDULES:
+        if s.get("id") == sid:
+            s["enabled"] = not s.get("enabled", True)
+            _save_schedules()
+            return jsonify(toggled=True, enabled=s["enabled"])
+    return jsonify(error="not found"), 404
+
+
 @app.route("/")
 def index():
     return render_template_string(INDEX_HTML)
@@ -849,4 +942,5 @@ renderPalette(); load();
 
 
 if __name__ == "__main__":
+    threading.Thread(target=_scheduler_loop, daemon=True).start()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8813)), debug=False)
