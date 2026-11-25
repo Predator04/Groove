@@ -270,6 +270,63 @@ def api_lan_chase_stop():
     return jsonify(stopped=True)
 
 
+# ---- visual layout dashboard (drag & drop) ----
+def _load_json(name, default):
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
+    try:
+        with open(p) as f:
+            return json.load(f)
+    except Exception:
+        return default
+
+
+LAYOUT = _load_json("layout.json", {})
+NAMES = _load_json("names.json", {})
+
+
+def refresh_names():
+    global NAMES
+    try:
+        data = list_devices()
+        for d in data["data"]["devices"]:
+            NAMES[d["device"]] = d["deviceName"]
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "names.json"), "w") as f:
+            json.dump(NAMES, f, indent=2)
+    except Exception:
+        pass
+
+
+@app.route("/api/layout", methods=["GET"])
+def api_layout_get():
+    if not NAMES:
+        refresh_names()
+    bulbs = []
+    for device_id, ip in LAN_MAP.items():
+        pos = LAYOUT.get(device_id, {})
+        bulbs.append({"id": device_id, "name": NAMES.get(device_id, device_id),
+                      "ip": ip, "x": pos.get("x", 0.5), "y": pos.get("y", 0.5)})
+    return jsonify({"bulbs": bulbs})
+
+
+@app.route("/api/layout", methods=["POST"])
+def api_layout_save():
+    global LAYOUT
+    LAYOUT = request.get_json(force=True)
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "layout.json"), "w") as f:
+        json.dump(LAYOUT, f, indent=2)
+    return jsonify(saved=True, count=len(LAYOUT))
+
+
+@app.route("/layout")
+def layout_page():
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "layout.html")
+    try:
+        with open(p) as f:
+            return f.read()
+    except Exception:
+        return "<h1>layout.html missing</h1>"
+
+
 @app.route("/")
 def index():
     return render_template_string(INDEX_HTML)

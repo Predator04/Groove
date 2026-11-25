@@ -1,6 +1,8 @@
-# secrets + device info — never commit
+# secrets + device info + runtime state — never commit
 config.json
 lan_devices.json
+layout.json
+names.json
 
 # python
 __pycache__/

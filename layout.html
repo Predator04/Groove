@@ -1,0 +1,240 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Groove — Light Layout</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif; background:#07090f; color:#e8ecf5; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+  header { display:flex; align-items:center; gap:14px; padding:10px 16px; background:rgba(255,255,255,.03); border-bottom:1px solid rgba(255,255,255,.08); flex-wrap:wrap; }
+  h1 { margin:0; font-size:18px; font-weight:700; letter-spacing:-.3px; }
+  .spacer { flex:1; }
+  button { background:linear-gradient(135deg,#3b5bdb,#7048e8); color:#fff; border:0; border-radius:9px; padding:8px 14px; font-size:13px; cursor:pointer; }
+  button.off { background:linear-gradient(135deg,#5c6573,#39404d); }
+  button.small { padding:5px 10px; font-size:12px; }
+  .speed { display:flex; align-items:center; gap:6px; font-size:12px; color:#8b95b0; }
+  .palette { display:flex; gap:6px; align-items:center; }
+  .sw { width:24px; height:24px; border-radius:50%; border:2px solid rgba(255,255,255,.3); cursor:pointer; }
+  .sw.del { border-style:dashed; opacity:.6; }
+  .hint { font-size:11px; color:#8b95b0; }
+
+  #yard { flex:1; position:relative; margin:10px; border:1px dashed rgba(255,255,255,.12); border-radius:16px; background:radial-gradient(1200px 800px at 30% 20%, #101828 0%, #0a0e18 55%, #05070d 100%); overflow:hidden; }
+  .bulb { position:absolute; transform:translate(-50%,-50%); width:56px; height:56px; border-radius:50%; cursor:grab; display:flex; align-items:center; justify-content:center; transition:box-shadow .15s, background .12s; touch-action:none; user-select:none; }
+  .bulb .core { width:56px; height:56px; border-radius:50%; background:rgba(20,24,32,.95); border:2px solid rgba(255,255,255,.14); display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .bulb.on .core { background:#fff; }
+  .bulb .lbl { font-size:9px; color:#cfd6e4; max-width:52px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bulb .ord { position:absolute; top:-9px; right:-9px; background:#2a3248; border:1px solid rgba(255,255,255,.2); border-radius:8px; font-size:10px; width:18px; height:18px; display:flex; align-items:center; justify-content:center; color:#cfd6e4; }
+  .bulb.dragging { cursor:grabbing; z-index:50; }
+  .bulb .glow { position:absolute; inset:-12px; border-radius:50%; filter:blur(14px); opacity:0; transition:opacity .15s; z-index:-1; }
+  .bulb.on .glow { opacity:.9; }
+
+  #panel { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); display:none; gap:10px; padding:12px 14px; background:rgba(16,20,30,.92); border:1px solid rgba(255,255,255,.12); border-radius:14px; backdrop-filter:blur(10px); align-items:center; }
+  #panel input[type=color] { width:40px; height:40px; border:0; border-radius:8px; background:none; cursor:pointer; }
+  #panel input[type=range] { width:120px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>💡 Groove Layout</h1>
+  <span class="hint">drag bulbs to arrange · chase runs left→right</span>
+  <div class="spacer"></div>
+  <div class="palette" id="palette"></div>
+  <button class="small" onclick="addColor()">+ color</button>
+  <div class="speed">Step <input id="speed" type="range" min="150" max="2000" step="50" value="350" oninput="spdLbl.textContent=this.value+'ms'"> <span id="spdLbl">350ms</span></div>
+  <button id="chaseBtn" onclick="toggleChase()">Start chase</button>
+  <button class="off" onclick="stopChase()">Stop</button>
+</header>
+
+<div id="yard"></div>
+
+<div id="panel">
+  <input type="color" id="cpicker" oninput="setColor(this.value)">
+  <button class="small" onclick="togglePower()">On/Off</button>
+  <input type="range" id="bright" min="1" max="100" value="100" oninput="setBright(this.value)">
+  <span id="pname" style="font-size:12px"></span>
+  <button class="small off" onclick="document.getElementById('panel').style.display='none'">✕</button>
+</div>
+
+<script>
+let bulbs = [];        // {id, name, ip, x, y, el, color}
+let palette = [[0,200,0],[255,0,0],[0,70,255],[140,0,220],[255,200,0],[255,255,255],[255,80,180]];
+let chasing = false;
+let chaseTimer = null;
+let chaseIdx = 0, chaseLap = 0;
+let selected = null;
+
+const yard = document.getElementById('yard');
+const panel = document.getElementById('panel');
+
+function css(rgb){ return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`; }
+function hexToRgb(h){ return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)]; }
+
+async function load(){
+  const r = await fetch('/api/layout'); const d = await r.json();
+  bulbs = d.bulbs.map(b => ({...b, el:null, color:[255,200,120]}));
+  renderBulbs();
+  renderPalette();
+}
+function renderBulbs(){
+  yard.innerHTML = '';
+  const order = sorted();
+  bulbs.forEach((b, i) => {
+    const el = document.createElement('div');
+    el.className = 'bulb';
+    el.style.left = (b.x*100)+'%';
+    el.style.top = (b.y*100)+'%';
+    el.innerHTML = `<div class="glow"></div><div class="core"><span class="lbl">${b.name}</span></div><span class="ord">${order.indexOf(b)+1}</span>`;
+    el.dataset.id = b.id;
+    setBulbColor(b, b.color);
+    el.addEventListener('pointerdown', e => startDrag(e, b, el));
+    el.addEventListener('click', e => { if(!el.classList.contains('dragging')) select(b); });
+    yard.appendChild(el);
+    b.el = el;
+  });
+}
+function sorted(){ return [...bulbs].sort((a,b)=>a.x-b.x); }
+function setBulbColor(b, rgb){
+  b.color = rgb;
+  if(b.el){
+    const core = b.el.querySelector('.core');
+    const glow = b.el.querySelector('.glow');
+    core.style.background = css(rgb);
+    core.style.color = (rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114) > 140 ? '#111' : '#fff';
+    glow.style.background = css(rgb);
+  }
+}
+
+// ---- drag ----
+let dragState = null;
+function startDrag(e, b, el){
+  if(chasing) return;
+  selected = b;
+  dragState = {b, el, offX:0, offY:0};
+  const rect = yard.getBoundingClientRect();
+  const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+  dragState.offX = b.x*rect.width - cx;
+  dragState.offY = b.y*rect.height - cy;
+  el.classList.add('dragging');
+  el.setPointerCapture(e.pointerId);
+  el.addEventListener('pointermove', onDrag);
+  el.addEventListener('pointerup', endDrag);
+}
+function onDrag(e){
+  if(!dragState) return;
+  const rect = yard.getBoundingClientRect();
+  let x = (e.clientX - rect.left + dragState.offX) / rect.width;
+  let y = (e.clientY - rect.top + dragState.offY) / rect.height;
+  x = Math.max(0.03, Math.min(0.97, x));
+  y = Math.max(0.05, Math.min(0.95, y));
+  dragState.b.x = x; dragState.b.y = y;
+  dragState.el.style.left = (x*100)+'%';
+  dragState.el.style.top = (y*100)+'%';
+  updateOrder();
+}
+function endDrag(e){
+  if(!dragState) return;
+  dragState.el.classList.remove('dragging');
+  dragState.el.removeEventListener('pointermove', onDrag);
+  dragState.el.removeEventListener('pointerup', endDrag);
+  dragState = null;
+  saveLayout();
+}
+function updateOrder(){
+  const order = sorted();
+  order.forEach((b, i) => { if(b.el) b.el.querySelector('.ord').textContent = i+1; });
+}
+async function saveLayout(){
+  const obj = {};
+  bulbs.forEach(b => obj[b.id] = {x: Math.round(b.x*1000)/1000, y: Math.round(b.y*1000)/1000});
+  await fetch('/api/layout', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(obj)});
+}
+
+// ---- control ----
+function select(b){
+  selected = b;
+  document.getElementById('pname').textContent = b.name;
+  const c = b.color;
+  document.getElementById('cpicker').value = '#'+c.map(v=>v.toString(16).padStart(2,'0')).join('');
+  panel.style.display = 'flex';
+}
+async function api(path, body){
+  const r = await fetch(path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  return r.json();
+}
+function setColor(h){
+  if(!selected) return;
+  const rgb = hexToRgb(h);
+  api('/api/lan/control', {ip:selected.ip, cmd:{name:'color', value:{r:rgb[0],g:rgb[1],b:rgb[2]}}});
+  setBulbColor(selected, rgb);
+}
+function togglePower(){
+  if(!selected) return;
+  api('/api/lan/control', {ip:selected.ip, cmd:{name:'turn', value: selected.el.classList.contains('on') ? 0 : 1}});
+  selected.el.classList.toggle('on');
+}
+function setBright(v){
+  if(!selected) return;
+  api('/api/lan/control', {ip:selected.ip, cmd:{name:'brightness', value:parseInt(v)}});
+}
+
+// ---- palette ----
+function renderPalette(){
+  const p = document.getElementById('palette');
+  p.innerHTML = '';
+  palette.forEach((c, i) => {
+    const s = document.createElement('div');
+    s.className = 'sw';
+    s.style.background = css(c);
+    s.title = 'click to remove';
+    s.onclick = () => { palette.splice(i,1); renderPalette(); };
+    p.appendChild(s);
+  });
+}
+function addColor(){
+  palette.push([Math.floor(Math.random()*255), Math.floor(Math.random()*255), Math.floor(Math.random()*255)]);
+  renderPalette();
+}
+
+// ---- chase ----
+function chaseOrderIps(){
+  return sorted().map(b => b.ip);
+}
+async function toggleChase(){
+  if(chasing){ stopChase(); return; }
+  const ips = chaseOrderIps();
+  const step = parseInt(document.getElementById('speed').value);
+  await api('/api/lan/chase/start', {ips, colors:palette, step_ms:step});
+  document.getElementById('chaseBtn').textContent = 'Chasing…';
+  chasing = true; chaseIdx = 0; chaseLap = 0;
+  startLocalMirror(step);
+}
+async function stopChase(){
+  if(chasing){ await api('/api/lan/chase/stop', {}); }
+  chasing = false;
+  clearInterval(chaseTimer); chaseTimer = null;
+  document.getElementById('chaseBtn').textContent = 'Start chase';
+  bulbs.forEach(b => { b.el.classList.remove('on'); setBulbColor(b, b.color); });
+}
+function startLocalMirror(step){
+  const order = sorted();
+  clearInterval(chaseTimer);
+  chaseTimer = setInterval(() => {
+    order.forEach((b, i) => {
+      if(i === chaseIdx){
+        b.el.classList.add('on');
+        setBulbColor(b, palette[(i + chaseLap) % palette.length]);
+      } else {
+        b.el.classList.remove('on');
+      }
+    });
+    chaseIdx = (chaseIdx + 1) % order.length;
+    if(chaseIdx === 0) chaseLap++;
+  }, step);
+}
+
+load();
+</script>
+</body>
+</html>
