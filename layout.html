@@ -40,13 +40,24 @@
   <h1>💡 Groove Layout</h1>
   <span class="hint">drag bulbs to arrange · chase runs left→right</span>
   <div class="spacer"></div>
+  <select id="effectSel" style="background:#1a2233;color:#e8ecf5;border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:7px 10px;font-size:12px;">
+    <option value="chase">🏃 Chase</option>
+    <option value="wave">🌊 Wave</option>
+    <option value="twinkle">✨ Twinkle</option>
+    <option value="meteor">☄️ Meteor</option>
+    <option value="breathe">🌬️ Breathe</option>
+    <option value="fire">🔥 Fire</option>
+    <option value="strobe">💥 Strobe</option>
+    <option value="gradient">🌈 Gradient</option>
+    <option value="solid">🎨 Solid</option>
+  </select>
   <select id="presetSel" onchange="applyPreset(this.value)" style="background:#1a2233;color:#e8ecf5;border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:7px 10px;font-size:12px;">
     <option value="">✨ Presets…</option>
   </select>
   <div class="palette" id="palette"></div>
   <button class="small" onclick="addColor()">+ color</button>
   <div class="speed">Step <input id="speed" type="range" min="150" max="2000" step="50" value="350" oninput="spdLbl.textContent=this.value+'ms'"> <span id="spdLbl">350ms</span></div>
-  <button id="chaseBtn" onclick="toggleChase()">Start chase</button>
+  <button id="chaseBtn" onclick="toggleEffect()">Start</button>
   <button class="off" onclick="stopChase()">Stop</button>
 </header>
 
@@ -204,20 +215,22 @@ function addColor(){
 function chaseOrderIps(){
   return sorted().map(b => b.ip);
 }
-async function toggleChase(){
+async function toggleEffect(){
   if(chasing){ stopChase(); return; }
   const ips = chaseOrderIps();
   const step = parseInt(document.getElementById('speed').value);
-  await api('/api/lan/chase/start', {ips, colors:palette, step_ms:step});
-  document.getElementById('chaseBtn').textContent = 'Chasing…';
+  const effect = document.getElementById('effectSel').value;
+  await api('/api/effect/start', {ips, effect, colors:palette, step_ms:step});
+  document.getElementById('chaseBtn').textContent = 'Running…';
   chasing = true; chaseIdx = 0; chaseLap = 0;
-  startLocalMirror(step);
+  if(effect === 'chase'){ startLocalMirror(step); }
+  else { bulbs.forEach(b => b.el.classList.add('on')); }
 }
 async function stopChase(){
-  if(chasing){ await api('/api/lan/chase/stop', {}); }
+  if(chasing){ await api('/api/effect/stop', {}); }
   chasing = false;
   clearInterval(chaseTimer); chaseTimer = null;
-  document.getElementById('chaseBtn').textContent = 'Start chase';
+  document.getElementById('chaseBtn').textContent = 'Start';
   bulbs.forEach(b => { b.el.classList.remove('on'); setBulbColor(b, b.color); });
 }
 function startLocalMirror(step){

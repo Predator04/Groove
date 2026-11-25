@@ -1,0 +1,92 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Groove — Setup</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif; background:radial-gradient(1200px 800px at 20% -10%, #1a2440 0%, #0b0f1a 55%, #05070d 100%); color:#e8ecf5; min-height:100vh; display:flex; justify-content:center; padding:40px 16px; }
+  .card { width:100%; max-width:560px; background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:28px; backdrop-filter:blur(14px); }
+  h1 { margin:0 0 4px; font-size:24px; }
+  .sub { color:#8b95b0; font-size:13px; margin-bottom:22px; }
+  .step { margin-bottom:22px; }
+  .step h2 { font-size:15px; margin:0 0 8px; }
+  label { font-size:12px; color:#8b95b0; display:block; margin-bottom:6px; }
+  input[type=text] { width:100%; padding:10px 12px; background:#0c101c; border:1px solid rgba(255,255,255,.14); border-radius:10px; color:#e8ecf5; font-size:13px; }
+  button { background:linear-gradient(135deg,#3b5bdb,#7048e8); color:#fff; border:0; border-radius:10px; padding:10px 16px; font-size:13px; cursor:pointer; }
+  button.off { background:linear-gradient(135deg,#5c6573,#39404d); }
+  .found { margin-top:10px; display:flex; flex-direction:column; gap:8px; }
+  .bulb { display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:8px 12px; font-size:13px; }
+  .dot { width:12px; height:12px; border-radius:50%; background:#ffd166; }
+  .ip { color:#8b95b0; font-family:monospace; font-size:12px; margin-left:auto; }
+  .ok { color:#6ee7a0; font-size:13px; }
+  .warn { color:#ffb86b; font-size:12px; margin-top:8px; line-height:1.5; }
+  a { color:#7aa2ff; }
+  .done { margin-top:18px; }
+  code { background:rgba(255,255,255,.08); padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>💡 Groove Setup</h1>
+  <div class="sub">Get your Govee bulbs running in under a minute.</div>
+
+  <div class="step">
+    <h2>1 · Govee API key</h2>
+    <label>Get one in the Govee Home app → Profile → About → Apply for API Key (emailed to you), then paste it below:</label>
+    <input type="text" id="apikey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+  </div>
+
+  <div class="step">
+    <h2>2 · Enable LAN control on each bulb</h2>
+    <label>In the Govee Home app, open each bulb → ⚙️ settings → <b>LAN Control</b> → on. (This is what lets Groove control them with zero rate limit.)</label>
+  </div>
+
+  <div class="step">
+    <h2>3 · Discover your bulbs</h2>
+    <button id="scanBtn" onclick="scan()">🔍 Scan for bulbs</button>
+    <div class="found" id="found"></div>
+  </div>
+
+  <div class="done">
+    <button id="saveBtn" onclick="save()" disabled>Save & open dashboard</button>
+    <div id="status"></div>
+  </div>
+
+  <div class="warn">💡 Tip: the machine running Groove must be on the <b>same Wi-Fi</b> as your bulbs, and your router must allow multicast/broadcast (most home routers do).</div>
+</div>
+
+<script>
+let found = {};
+async function scan(){
+  document.getElementById('found').innerHTML = '<span class="ok">Scanning…</span>';
+  const r = await fetch('/api/scan'); const d = await r.json();
+  found = d.found || {};
+  const el = document.getElementById('found');
+  if(Object.keys(found).length === 0){
+    el.innerHTML = '<span class="warn">No bulbs found. Make sure LAN Control is on for each bulb and this machine is on the same Wi-Fi, then retry.</span>';
+    document.getElementById('saveBtn').disabled = true;
+    return;
+  }
+  el.innerHTML = Object.values(found).map(b =>
+    `<div class="bulb"><span class="dot"></span>${b.name || b.sku}<span class="ip">${b.ip}</span></div>`
+  ).join('');
+  document.getElementById('saveBtn').disabled = false;
+}
+async function save(){
+  const key = document.getElementById('apikey').value.trim();
+  const devices = {};
+  Object.keys(found).forEach(dev => devices[dev] = found[dev].ip);
+  const r = await fetch('/api/setup', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({api_key: key, devices})});
+  const d = await r.json();
+  document.getElementById('status').innerHTML = d.saved
+    ? '<span class="ok">Saved! Opening dashboard…</span>'
+    : '<span class="warn">Something went wrong.</span>';
+  if(d.saved) setTimeout(() => location.href = '/layout', 800);
+}
+</script>
+</body>
+</html>

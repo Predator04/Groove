@@ -1,39 +1,64 @@
-# Groove — Govee Bulb Controller
+# 💡 Groove
 
-A no-ads, self-hosted controller for Govee "Giant LED" bulbs (H6008 and other
-Wi-Fi+BLE models). Two control paths:
+A self-hosted web controller for Govee "Giant LED" bulbs (H6008 and other
+Wi-Fi+BLE models). No app, no ads, no cloud rate limit — just your bulbs,
+your network, your rules.
 
-- **Cloud API** (`/api/*`) — official Govee Developer API. Simple but rate-limited
-  to 10 commands/min per bulb.
-- **LAN UDP** (`/api/lan/*`) — direct UDP control on port 4003. **No rate limit**,
-  so it can drive fast synchronized chases across all bulbs.
+## Why
 
-## Setup
+Govee's official API caps you at **10 commands/min per bulb**, which makes
+fast synchronized effects impossible. Groove talks to your bulbs directly
+over the LAN (UDP port 4003) — **zero rate limit** — and gives you effects
+the Govee app can't do.
 
-1. `pip install -r requirements.txt`
-2. Copy `config.example.json` → `config.json` and put your Govee API key in it
-   (Govee Home app → Profile → About → Apply for API Key; it's emailed to you).
-3. Enable **LAN Control** on each bulb (Govee Home → tap device → gear → LAN Control → on).
-4. Discover bulb IPs: run `scripts/govee_scan2.py` (must run on a host on the same
-   LAN, e.g. Windows) and put the `device → ip` pairs into `lan_devices.json`.
-5. `python app.py` (serves on port 8813).
+## Features
+
+- **9 effects**: Chase (running lights), Wave, Twinkle, Meteor (comet with tail),
+  Breathe (fade pulse), Fire (flicker), Strobe, Gradient, Solid
+- **Drag & drop layout** — arrange your bulbs on a canvas to match your real
+  setup; the chase follows the left-to-right order
+- **Presets** — Christmas, Classic Red/Green, All White, Red White Blue, Candy
+- **Per-bulb control** — click any bulb to set color, brightness, on/off
+- **Zero rate limit** — raw UDP control, no cloud throttle
+
+## Setup (under a minute)
+
+1. Install Python 3 and `pip install -r requirements.txt`
+2. Run `python app.py` → open **http://localhost:8813/setup**
+3. Paste your **Govee API key** (Govee Home app → Profile → About → Apply for API Key — it's emailed to you)
+4. In the Govee Home app, open each bulb → ⚙️ → **LAN Control** → on
+5. Click **Scan for bulbs**, then **Save & open dashboard**
+
+That's it. The setup page writes `config.json` (key) and `lan_devices.json`
+(bulb → IP) for you — no manual file editing.
+
+## The dashboard
+
+Open **http://localhost:8813/layout**:
+
+- **Drag bulbs** to match your physical layout (auto-saves)
+- Pick an **effect** + **preset**, set speed, hit **Start**
+- Click a bulb for color / brightness / power
+
+## Requirements
+
+- Machine on the **same Wi-Fi** as the bulbs (multicast/broadcast must be allowed)
+- Govee bulbs with **LAN Control enabled** (per device)
+- Govee API key (for device names + fallback cloud control)
 
 ## Endpoints
 
-- `GET /api/devices` — list devices (cloud)
-- `POST /api/control` — cloud on/off/brightness/color/temp
-- `GET /api/state` — cloud device state
-- `GET /api/lan/devices` — device → IP map
-- `POST /api/lan/control` — instant UDP on/off/brightness/color
-- `POST /api/lan/chase/start` — fast synchronized chase (body: `{"ips":[...],"colors":[[r,g,b],...],"step_ms":N}`)
-- `POST /api/lan/chase/stop`
-- `GET /` — glass dashboard
+- `GET /api/devices` · `POST /api/control` · `GET /api/state` — cloud API
+- `POST /api/effect/start` `{ips, effect, colors, step_ms}` · `POST /api/effect/stop` — LAN effects
+- `GET /api/scan` — LAN discovery
+- `POST /api/setup` `{api_key, devices}` — one-shot onboarding
+- `GET /api/presets` · `GET /api/layout` · `POST /api/layout` — presets + saved arrangement
+- `POST /api/lan/control` — instant per-bulb UDP control
 
-## LAN protocol notes
+## LAN protocol (reference)
 
-- Discovery: UDP multicast `239.255.255.250:4001` (devices reply on `4002`).
-- Control: UDP unicast to `device-ip:4003`, fire-and-forget JSON:
-  - turn: `{"msg":{"cmd":"turn","data":{"value":0|1}}}`
-  - brightness: `{"msg":{"cmd":"brightness","data":{"value":1-100}}}`
-  - color: `{"msg":{"cmd":"colorwc","data":{"color":{"r","g","b"},"colorTemInKelvin":0}}}`
-- Control commands get no ACK — don't block on a reply.
+- Discovery: UDP multicast `239.255.255.250:4001` → devices reply on `4002`
+- Control: UDP unicast to `device-ip:4003` (fire-and-forget):
+  - `{"msg":{"cmd":"turn","data":{"value":0|1}}}`
+  - `{"msg":{"cmd":"brightness","data":{"value":1-100}}}`
+  - `{"msg":{"cmd":"colorwc","data":{"color":{"r","g","b"},"colorTemInKelvin":0}}}`

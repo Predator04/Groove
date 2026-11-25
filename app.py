@@ -7,6 +7,7 @@ import os
 import time
 import json
 import socket
+import random
 import traceback
 import threading
 import requests
@@ -15,7 +16,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 BUILD_DATE = "2026-11-15"
 
 
@@ -117,31 +118,103 @@ def lan_brightness(ip, pct):
     lan_control(ip, "brightness", {"value": int(pct)})
 
 
-# ---- LAN chase (fast, no rate limit) ----
-_lan_chase_thread = None
-_lan_chase_stop = threading.Event()
+# ---- effects engine (LAN UDP, no rate limit) ----
+_effect_thread = None
+_effect_stop = threading.Event()
 
 
-def _run_lan_chase(ip_list, colors, step_ms):
-    """Theater 'chasing lights': one bright bulb runs along the string, showing a
-    different color each step; each full loop the color sequence rotates by one so
-    the pattern is never identical two laps in a row."""
+def _run_effect(ip_list, effect, colors, step_ms):
+    """Run a lighting effect across the bulbs.
+    effect: chase | wave | twinkle | meteor | breathe | fire | strobe | gradient | solid"""
     n = len(ip_list)
-    ncolors = len(colors)
-    for ip in ip_list:
-        lan_turn(ip, False)          # start all-dark
-    lap = 0
-    while not _lan_chase_stop.is_set():
-        for idx in range(n):
-            if _lan_chase_stop.is_set():
-                break
-            prev = ip_list[(idx - 1) % n]
-            cur = ip_list[idx]
-            lan_turn(prev, False)
-            lan_color(cur, colors[(idx + lap) % ncolors])
-            lan_turn(cur, True)
-            _lan_chase_stop.wait(step_ms / 1000.0)
-        lap += 1
+    nc = len(colors)
+
+    if effect == "chase":
+        for ip in ip_list: lan_turn(ip, False)
+        lap = 0
+        while not _effect_stop.is_set():
+            for idx in range(n):
+                if _effect_stop.is_set(): break
+                lan_turn(ip_list[(idx - 1) % n], False)
+                lan_color(ip_list[idx], colors[(idx + lap) % nc])
+                lan_turn(ip_list[idx], True)
+                _effect_stop.wait(step_ms / 1000.0)
+            lap += 1
+
+    elif effect == "wave":
+        for ip in ip_list: lan_turn(ip, True)
+        idx = 0
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                lan_color(ip, colors[(idx + i) % nc])
+            idx += 1
+            _effect_stop.wait(step_ms / 1000.0)
+
+    elif effect == "twinkle":
+        for ip in ip_list: lan_turn(ip, False)
+        while not _effect_stop.is_set():
+            i = random.randrange(n)
+            lan_color(ip_list[i], random.choice(colors))
+            lan_turn(ip_list[i], True)
+            _effect_stop.wait(max(step_ms, 60) / 1000.0)
+            lan_turn(ip_list[i], False)
+
+    elif effect == "meteor":
+        for ip in ip_list: lan_turn(ip, True)
+        tail = min(3, n - 1)
+        head = colors[0]
+        idx = 0
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                dist = (i - idx) % n
+                if dist == 0:
+                    lan_color(ip, head); lan_brightness(ip, 100)
+                elif dist <= tail:
+                    lan_color(ip, head); lan_brightness(ip, max(5, 100 - dist * 30))
+                else:
+                    lan_brightness(ip, 5)
+            idx = (idx + 1) % n
+            _effect_stop.wait(step_ms / 1000.0)
+
+    elif effect == "breathe":
+        for ip in ip_list:
+            lan_turn(ip, True); lan_color(ip, colors[0])
+        while not _effect_stop.is_set():
+            for b in range(10, 101, 10):
+                if _effect_stop.is_set(): break
+                for ip in ip_list: lan_brightness(ip, b)
+                _effect_stop.wait(step_ms / 1000.0)
+            for b in range(90, 4, -10):
+                if _effect_stop.is_set(): break
+                for ip in ip_list: lan_brightness(ip, b)
+                _effect_stop.wait(step_ms / 1000.0)
+
+    elif effect == "fire":
+        warm = [[255, 60, 0], [255, 120, 0], [255, 40, 10], [255, 150, 40], [200, 30, 0]]
+        for ip in ip_list: lan_turn(ip, True)
+        while not _effect_stop.is_set():
+            for ip in ip_list:
+                lan_color(ip, random.choice(warm))
+                lan_brightness(ip, random.randint(40, 100))
+            _effect_stop.wait(max(step_ms, 100) / 1000.0)
+
+    elif effect == "strobe":
+        on = False
+        while not _effect_stop.is_set():
+            on = not on
+            for ip in ip_list:
+                if on:
+                    lan_color(ip, colors[0]); lan_turn(ip, True)
+                else:
+                    lan_turn(ip, False)
+            _effect_stop.wait(step_ms / 1000.0)
+
+    elif effect in ("gradient", "solid"):
+        for i, ip in enumerate(ip_list):
+            c = colors[i % nc] if effect == "gradient" else colors[0]
+            lan_color(ip, c); lan_turn(ip, True)
+        while not _effect_stop.is_set():
+            _effect_stop.wait(1)
 
 
 # ---- chase engine (timed color sequence across bulbs) ----
@@ -177,7 +250,7 @@ def version():
         version=VERSION,
         commit="n/a",
         build_date=BUILD_DATE,
-        features=["device list", "on/off", "brightness", "RGB color", "color temp", "custom chase"],
+        features=["9 LAN effects", "drag-and-drop layout", "presets", "zero rate limit", "setup wizard", "per-bulb control"],
     )
 
 
@@ -251,23 +324,35 @@ def api_lan_control():
     return jsonify(ok=True)
 
 
+@app.route("/api/effect/start", methods=["POST"])
+def api_effect_start():
+    global _effect_thread
+    body = request.get_json(force=True)
+    ips = body["ips"]
+    effect = body.get("effect", "chase")
+    colors = body.get("colors", [[255, 0, 0]])
+    step_ms = int(body.get("step_ms", 400))
+    _effect_stop.clear()
+    _effect_thread = threading.Thread(target=_run_effect, args=(ips, effect, colors, step_ms), daemon=True)
+    _effect_thread.start()
+    return jsonify(started=True, effect=effect, ips=len(ips), step_ms=step_ms)
+
+
+@app.route("/api/effect/stop", methods=["POST"])
+def api_effect_stop():
+    _effect_stop.set()
+    return jsonify(stopped=True)
+
+
 @app.route("/api/lan/chase/start", methods=["POST"])
 def api_lan_chase_start():
-    global _lan_chase_thread
-    body = request.get_json(force=True)
-    ips = body["ips"]              # ["192.168.1.x", ...]
-    colors = body["colors"]        # [[r,g,b], ...]
-    step_ms = int(body.get("step_ms", 500))
-    _lan_chase_stop.clear()
-    _lan_chase_thread = threading.Thread(target=_run_lan_chase, args=(ips, colors, step_ms), daemon=True)
-    _lan_chase_thread.start()
-    return jsonify(started=True, ips=len(ips), colors=len(colors), step_ms=step_ms)
+    """Backward-compat alias for the chase effect."""
+    return api_effect_start()
 
 
 @app.route("/api/lan/chase/stop", methods=["POST"])
 def api_lan_chase_stop():
-    _lan_chase_stop.set()
-    return jsonify(stopped=True)
+    return api_effect_stop()
 
 
 # ---- visual layout dashboard (drag & drop) ----
@@ -327,6 +412,16 @@ def layout_page():
         return "<h1>layout.html missing</h1>"
 
 
+@app.route("/setup")
+def setup_page():
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "setup.html")
+    try:
+        with open(p) as f:
+            return f.read()
+    except Exception:
+        return "<h1>setup.html missing</h1>"
+
+
 # ---- chase presets ----
 DEFAULT_PRESETS = {
     "Christmas": {"colors": [[0, 200, 0], [255, 0, 0], [0, 70, 255], [140, 0, 220],
@@ -342,6 +437,68 @@ PRESETS = _load_json("presets.json", DEFAULT_PRESETS)
 @app.route("/api/presets")
 def api_presets():
     return jsonify(PRESETS)
+
+
+# ---- setup + discovery ----
+@app.route("/api/effects")
+def api_effects():
+    return jsonify(["chase", "wave", "twinkle", "meteor", "breathe", "fire", "strobe", "gradient", "solid"])
+
+
+@app.route("/api/scan")
+def api_scan():
+    """LAN discovery: multicast/broadcast scan for Govee bulbs (UDP 4001 -> 4002)."""
+    found = {}
+    scan = json.dumps({"msg": {"cmd": "scan", "data": {"account_topic": "reserve"}}}).encode()
+    try:
+        rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        rx.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        rx.bind(("0.0.0.0", 4002))
+        rx.settimeout(1)
+        tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        tx.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        try:
+            mreq = socket.inet_aton("239.255.255.250") + socket.inet_aton("0.0.0.0")
+            tx.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+        except Exception:
+            pass
+        for _ in range(4):
+            tx.sendto(scan, ("239.255.255.250", 4001))
+            tx.sendto(scan, ("255.255.255.255", 4001))
+            while True:
+                try:
+                    data, addr = rx.recvfrom(65535)
+                    j = json.loads(data)
+                    d = j["msg"]["data"]
+                    dev = d.get("device")
+                    found[dev] = {"ip": addr[0], "sku": d.get("sku"), "name": NAMES.get(dev, dev)}
+                except socket.timeout:
+                    break
+        tx.close(); rx.close()
+    except Exception as e:
+        return jsonify({"found": found, "error": str(e)})
+    return jsonify({"found": found, "count": len(found)})
+
+
+@app.route("/api/setup", methods=["POST"])
+def api_setup():
+    """One-shot setup: save API key + LAN device map, then refresh names."""
+    global LAN_MAP, API_KEY
+    body = request.get_json(force=True)
+    cfg_dir = os.path.dirname(os.path.abspath(__file__))
+    key = body.get("api_key", "")
+    devices = body.get("devices", {})
+    if key:
+        with open(os.path.join(cfg_dir, "config.json"), "w") as f:
+            json.dump({"api_key": key}, f, indent=2)
+        API_KEY = key
+    if devices:
+        LAN_MAP = devices
+        with open(os.path.join(cfg_dir, "lan_devices.json"), "w") as f:
+            json.dump(devices, f, indent=2)
+    if key:
+        refresh_names()
+    return jsonify(saved=True, api_key=bool(key), bulbs=len(LAN_MAP))
 
 
 @app.route("/")
