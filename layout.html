@@ -607,6 +607,7 @@
   <button class="off" id="linkBtn" onclick="toggleLinkMode()">🔗 Set order</button>
   <button class="off" onclick="surprise()">🎲 Surprise</button>
   <button class="off" id="partyBtn" onclick="toggleParty()">🎉 Party</button>
+  <button class="off" id="xmasBtn" onclick="toggleChristmas()">🎄 Christmas</button>
   <button class="off" onclick="openSched()">⏰ Schedule</button>
   <button class="off" onclick="openScenes()">💾 Scenes</button>
   <button class="off" onclick="openAdd()">➕ Add</button>
@@ -1017,14 +1018,26 @@ function surprise(){
   stopChase().then(() => toggleEffect());
 }
 
-// ---- party mode (continuous random rotation) ----
+// ---- party mode (continuous rotation) ----
 let partyTimer = null;
+let partyTheme = null;   // 'random' | 'christmas'
+function stopParty(){
+  if(partyTimer){ clearInterval(partyTimer); partyTimer = null; }
+  ['partyBtn','xmasBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el){ el.classList.remove('active'); }
+  });
+  document.getElementById('partyBtn').textContent = '🎉 Party';
+  document.getElementById('xmasBtn').textContent = '🎄 Christmas';
+  partyTheme = null;
+}
 async function toggleParty(){
-  const b = document.getElementById('partyBtn');
-  if(partyTimer){ clearInterval(partyTimer); partyTimer = null; b.classList.remove('active'); b.textContent = '🎉 Party'; return; }
-  b.classList.add('active'); b.textContent = '🎉 Party…';
+  if(partyTheme === 'random'){ stopParty(); return; }
+  stopParty(); partyTheme = 'random';
+  document.getElementById('partyBtn').classList.add('active');
+  document.getElementById('partyBtn').textContent = '🎉 Party…';
+  const effs = ['chase','wave','twinkle','meteor','confetti','fireworks','disco','rainbow','strobe','comet','snake','plasma','fireflies','larson','drip','pendulum','marquee'];
   const run = () => {
-    const effs = ['chase','wave','twinkle','meteor','confetti','fireworks','disco','rainbow','strobe','comet','snake','plasma','fireflies','larson','drip','pendulum','marquee'];
     document.getElementById('effectSel').value = effs[Math.floor(Math.random()*effs.length)];
     const n = 3 + Math.floor(Math.random()*5);
     palette = Array.from({length:n}, () => [Math.floor(Math.random()*256), Math.floor(Math.random()*256), Math.floor(Math.random()*256)]);
@@ -1035,6 +1048,31 @@ async function toggleParty(){
   };
   run();
   partyTimer = setInterval(run, 22000);
+}
+async function toggleChristmas(){
+  if(partyTheme === 'christmas'){ stopParty(); return; }
+  stopParty(); partyTheme = 'christmas';
+  document.getElementById('xmasBtn').classList.add('active');
+  document.getElementById('xmasBtn').textContent = '🎄 Christmas…';
+  const effs = ['candycane','chase','sparkle','twinkle','fireflies','wave','gradient','breathe'];
+  const palettes = [
+    [[0,180,0],[200,0,0],[255,255,255]],
+    [[200,0,0],[0,180,0]],
+    [[200,0,0],[255,255,255]],
+    [[200,0,0],[0,180,0],[255,200,0]],
+    [[255,255,255],[255,230,180]],
+    [[0,180,0],[200,0,0],[255,200,0],[255,255,255]],
+  ];
+  const run = () => {
+    document.getElementById('effectSel').value = effs[Math.floor(Math.random()*effs.length)];
+    palette = palettes[Math.floor(Math.random()*palettes.length)].slice();
+    renderPalette();
+    const step = 250 + Math.floor(Math.random()*5)*100;
+    document.getElementById('speed').value = step; spdLbl.textContent = step + 'ms';
+    stopChase().then(() => toggleEffect());
+  };
+  run();
+  partyTimer = setInterval(run, 18000);
 }
 
 // ---- scheduler ----
