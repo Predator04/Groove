@@ -16,7 +16,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "1.3.0"
+VERSION = "1.5.0"
 BUILD_DATE = "2026-11-15"
 
 
@@ -803,6 +803,7 @@ def _scheduler_loop():
                     start_effect(ips, sch.get("effect", "chase"),
                                  sch.get("colors", [[255, 0, 0]]),
                                  int(sch.get("step_ms", 400)))
+            _check_automation()
         except Exception:
             pass
         time.sleep(20)
@@ -849,6 +850,89 @@ def api_schedules_toggle(sid):
             _save_schedules()
             return jsonify(toggled=True, enabled=s["enabled"])
     return jsonify(error="not found"), 404
+
+
+# ---- sunrise/sunset automation (dusk → dawn) ----
+AUTOMATION = _load_json("automation.json", {
+    "enabled": False,
+    "lat": 36.1699,
+    "lon": -115.1398,
+    "on_at_sunset": True,
+    "off_at_sunrise": True,
+    "effect": "solid",
+    "colors": [[255, 200, 120]],
+    "step_ms": 400,
+})
+
+_sun_cache = {"date": None, "sunrise": None, "sunset": None}
+
+
+def _get_sun_times(lat, lon):
+    import datetime as _dt
+    today = _dt.date.today()
+    if _sun_cache["date"] == today and _sun_cache["sunrise"] is not None:
+        return _sun_cache["sunrise"], _sun_cache["sunset"]
+    try:
+        r = requests.get("https://api.sunrise-sunset.org/json",
+                         params={"lat": lat, "lng": lon, "formatted": 0}, timeout=10)
+        d = r.json().get("results", {})
+
+        def to_min(iso):
+            dt = _dt.datetime.fromisoformat(iso)  # aware UTC
+            local = dt.astimezone()
+            return local.hour * 60 + local.minute
+        sunrise = to_min(d["sunrise"])
+        sunset = to_min(d["sunset"])
+        _sun_cache.update({"date": today, "sunrise": sunrise, "sunset": sunset})
+        return sunrise, sunset
+    except Exception:
+        return None, None
+
+
+_auto_on = False
+
+
+def _check_automation():
+    global _auto_on
+    if not AUTOMATION.get("enabled"):
+        return
+    now = time.localtime()
+    cur = now.tm_hour * 60 + now.tm_min
+    sr, ss = _get_sun_times(AUTOMATION.get("lat"), AUTOMATION.get("lon"))
+    if sr is None:
+        return
+    nighttime = (cur >= ss) or (cur < sr)
+    if nighttime and AUTOMATION.get("on_at_sunset") and not _auto_on:
+        _auto_on = True
+        ips = _ordered_ips()
+        if ips:
+            start_effect(ips, AUTOMATION.get("effect", "chase"),
+                         AUTOMATION.get("colors", [[255, 200, 120]]),
+                         int(AUTOMATION.get("step_ms", 400)))
+    elif not nighttime and AUTOMATION.get("off_at_sunrise") and _auto_on:
+        _auto_on = False
+        _effect_stop.set()
+        for ip in LAN_MAP.values():
+            lan_turn(ip, False)
+
+
+@app.route("/api/automation", methods=["GET"])
+def api_automation():
+    sr, ss = _get_sun_times(AUTOMATION.get("lat"), AUTOMATION.get("lon"))
+    def fmt(m):
+        return f"{m//60:02d}:{m%60:02d}" if m is not None else None
+    return jsonify({**AUTOMATION, "sunrise": fmt(sr), "sunset": fmt(ss)})
+
+
+@app.route("/api/automation", methods=["POST"])
+def api_automation_set():
+    global AUTOMATION
+    body = request.get_json(force=True) or {}
+    for k in ("enabled", "lat", "lon", "on_at_sunset", "off_at_sunrise", "effect", "colors", "step_ms"):
+        if k in body:
+            AUTOMATION[k] = body[k]
+    _write_json(os.path.join(os.path.dirname(os.path.abspath(__file__)), "automation.json"), AUTOMATION)
+    return jsonify(saved=True, automation=AUTOMATION)
 
 
 @app.route("/")

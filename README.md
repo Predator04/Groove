@@ -20,6 +20,8 @@ the Govee app can't do.
   setup; the chase follows the left-to-right order
 - **Presets** — Christmas, Classic Red/Green, All White, Red White Blue, Candy
 - **Per-bulb control** — click any bulb to set color, brightness, on/off
+- **Scheduler** — run any effect at a set time, daily recurring (persists)
+- **Dusk-to-dawn** — auto on at sunset, off at sunrise (real sun times for your location)
 - **Zero rate limit** — raw UDP control, no cloud throttle
 
 ## Setup (under a minute)

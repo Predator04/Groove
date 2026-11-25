@@ -100,6 +100,11 @@
   <div style="background:#12172a; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:20px; width:min(480px,92vw);">
     <h3 style="margin:0 0 4px;">⏰ Schedule an effect</h3>
     <div style="font-size:11px;color:#8b95b0;margin-bottom:12px;">Uses whatever effect + colors + speed you currently have selected.</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:9px;">
+      <span style="font-size:12px;">🌇 Auto: on at sunset · off at sunrise</span>
+      <span style="flex:1"></span>
+      <button id="duskBtn" class="small off" onclick="toggleDusk()">Enable</button>
+    </div>
     <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
       <input type="time" id="schedTime" style="background:#0c101c;border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:8px;color:#e8ecf5;">
       <button onclick="addSchedule()">Add</button>
@@ -386,6 +391,7 @@ function surprise(){
 function openSched(){
   document.getElementById('schedModal').style.display = 'flex';
   loadSchedules();
+  loadAutomation();
 }
 async function loadSchedules(){
   try{
@@ -417,6 +423,27 @@ async function delSched(id){
 async function toggleSched(id){
   await fetch('/api/schedules/'+id+'/toggle', {method:'POST'});
   loadSchedules();
+}
+
+// ---- dusk → dawn automation ----
+async function loadAutomation(){
+  try{
+    const r = await fetch('/api/automation'); const a = await r.json();
+    const btn = document.getElementById('duskBtn');
+    btn.textContent = a.enabled ? `On ✓ (${a.sunset || '—'})` : 'Enable';
+    btn.className = a.enabled ? 'small' : 'small off';
+  }catch(e){}
+}
+async function toggleDusk(){
+  const r = await fetch('/api/automation'); const a = await r.json();
+  a.enabled = !a.enabled;
+  if(a.enabled){
+    a.effect = document.getElementById('effectSel').value;
+    a.colors = palette;
+    a.step_ms = parseInt(document.getElementById('speed').value);
+  }
+  await fetch('/api/automation', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(a)});
+  loadAutomation();
 }
 
 load();
