@@ -17,7 +17,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.14.0"
+VERSION = "2.15.0"
 BUILD_DATE = "2026-11-15"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -1580,19 +1580,61 @@ def _find_free_port(start=8813, tries=40):
     return 8813
 
 
+def _open_browser(url):
+    try:
+        import webbrowser
+        webbrowser.open(url)
+    except Exception:
+        pass
+
+
+def _serve(port):
+    app.run(host="0.0.0.0", port=port, debug=False)
+
+
+def _log(msg):
+    try:
+        with open(os.path.join(BASE_DIR, "groove.log"), "a") as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}\n")
+    except Exception:
+        pass
+
+
+def _run_tray(port):
+    import pystray
+    from PIL import Image
+    ip = os.path.join(RES_DIR, "icon.png")
+    try:
+        img = Image.open(ip).convert("RGBA")
+    except Exception:
+        img = Image.new("RGBA", (64, 64), (107, 140, 255, 255))
+    icon = pystray.Icon(
+        "Groove",
+        img,
+        "Groove",
+        menu=pystray.Menu(
+            pystray.MenuItem("Open Groove", lambda icon, item: _open_browser(f"http://localhost:{port}/layout"), default=True),
+            pystray.Menu.SEPARATOR,
+            pystray.MenuItem("Quit", lambda icon, item: (icon.stop(), os._exit(0))),
+        ),
+    )
+    icon.run()
+
+
 if __name__ == "__main__":
-    _port = int(os.environ.get("PORT", "0") or "0")
-    if _port <= 0:
-        _port = _find_free_port()
-    threading.Thread(target=_scheduler_loop, daemon=True).start()
-
-    def _open_browser():
+    try:
+        _port = int(os.environ.get("PORT", "0") or "0")
+        if _port <= 0:
+            _port = _find_free_port()
+        _log(f"starting on port {_port}")
+        threading.Thread(target=_scheduler_loop, daemon=True).start()
+        threading.Thread(target=_serve, args=(_port,), daemon=True).start()
+        threading.Timer(1.5, lambda: _open_browser(f"http://localhost:{_port}/layout")).start()
         try:
-            import webbrowser
-            webbrowser.open(f"http://localhost:{_port}/layout")
-        except Exception:
-            pass
-
-    threading.Timer(1.5, _open_browser).start()
-    print(f"Groove is running -> http://localhost:{_port}/layout")
-    app.run(host="0.0.0.0", port=_port, debug=False)
+            _run_tray(_port)
+        except Exception as e:
+            _log(f"tray unavailable ({e}) — staying alive in background")
+            while True:
+                time.sleep(3600)
+    except Exception:
+        _log("FATAL: " + traceback.format_exc())
