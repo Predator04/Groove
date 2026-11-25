@@ -795,8 +795,14 @@
     <button onclick="previewBuiltMode()">▶ Preview</button>
     <button class="ghost" onclick="toggleSimLink()">🔗 Link</button>
     <button class="ghost" onclick="toggleSimDelete()">🗑 Delete</button>
+    <button class="ghost" onclick="document.getElementById('bgFile').click()">🖼 Photo</button>
+    <button class="ghost" onclick="exportBackup()">📤 Export</button>
+    <button class="ghost" onclick="document.getElementById('importFile').click()">📥 Import</button>
+    <button class="ghost" onclick="shareImage()">📷 Share</button>
     <button class="ghost" onclick="closeBuilder()">Back</button>
   </div>
+  <input type="file" id="bgFile" accept="image/*" style="display:none" onchange="uploadBackground(this.files[0])">
+  <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importBackup(this.files[0])">
   <div class="builder-body">
     <div class="sim-yard" id="simYard"><div id="simLayer"></div></div>
     <div class="builder-side">
@@ -1380,6 +1386,84 @@ async function deleteSimBulb(b){
   document.getElementById('simStatus').textContent = 'Light removed.';
   await buildSimYard();
 }
+function applyBackground(){
+  fetch('/api/background').then(r => {
+    if(!r.ok) return;
+    const url = '/api/background?t=' + Date.now();
+    ['yard', 'simYard'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el){
+        el.style.backgroundImage = `url('${url}')`;
+        el.style.backgroundSize = 'cover';
+        el.style.backgroundPosition = 'center';
+      }
+    });
+  }).catch(()=>{});
+}
+async function uploadBackground(file){
+  if(!file) return;
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    await fetch('/api/background', {method:'POST', body: fd});
+    applyBackground();
+    const st = document.getElementById('simStatus');
+    if(st) st.textContent = 'Photo set — drag bulbs onto their real spots.';
+  } catch(e){ alert('Upload failed'); }
+}
+function exportBackup(){
+  fetch('/api/backup').then(r => r.blob()).then(blob => {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'groove-backup.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+}
+async function importBackup(file){
+  if(!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    const r = await fetch('/api/backup', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)});
+    const d = await r.json();
+    alert('Restored: ' + (d.restored || []).join(', '));
+    location.reload();
+  } catch(e){ alert('Import failed: ' + e.message); }
+}
+function shareImage(){
+  const yard = document.getElementById('simYard');
+  const rect = yard.getBoundingClientRect();
+  const scale = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(rect.width * scale);
+  canvas.height = Math.round(rect.height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#0b0f1a';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const draw = () => {
+    simBulbs.forEach(b => {
+      const x = b.x * canvas.width, y = b.y * canvas.height;
+      const col = b.color ? `rgb(${b.color[0]},${b.color[1]},${b.color[2]})` : '#4a4a5c';
+      ctx.shadowColor = col; ctx.shadowBlur = 26;
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(x, y, 26, 0, Math.PI * 2); ctx.fill();
+    });
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'groove-layout.png';
+    a.click();
+  };
+  const bg = yard.style.backgroundImage;
+  const m = bg && bg.match(/url\(['"]?(.*?)['"]?\)/);
+  if(m){
+    const img = new Image();
+    img.onload = () => { ctx.drawImage(img, 0, 0, canvas.width, canvas.height); draw(); };
+    img.src = m[1];
+  } else {
+    draw();
+  }
+}
+applyBackground();
 let simDrag = null;
 function simStartDrag(e, el){
   if(simLinkMode || deleteMode) return;

@@ -17,7 +17,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.9.0"
+VERSION = "2.10.0"
 BUILD_DATE = "2026-11-15"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -1463,6 +1463,77 @@ document.getElementById('stepms').oninput=function(){ document.getElementById('s
 renderPalette(); load();
 </script>
 </body></html>"""
+
+
+
+# ---- background photo + backup export/import ----
+_BG_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+
+
+@app.route("/api/background", methods=["POST"])
+def api_background_upload():
+    from flask import send_from_directory
+    f = request.files.get("image")
+    if not f:
+        return jsonify(error="no image file"), 400
+    ext = os.path.splitext(f.filename or "")[1].lower() or ".jpg"
+    if ext not in _BG_EXTS:
+        return jsonify(error="unsupported image type"), 400
+    for e in _BG_EXTS:
+        old = os.path.join(BASE_DIR, "background" + e)
+        if os.path.exists(old):
+            try:
+                os.remove(old)
+            except Exception:
+                pass
+    f.save(os.path.join(BASE_DIR, "background" + ext))
+    return jsonify(saved=True)
+
+
+@app.route("/api/background")
+def api_background_get():
+    from flask import send_from_directory
+    for ext in _BG_EXTS:
+        if os.path.exists(os.path.join(BASE_DIR, "background" + ext)):
+            return send_from_directory(BASE_DIR, "background" + ext)
+    return jsonify(error="no background"), 404
+
+
+@app.route("/api/backup")
+def api_backup():
+    return jsonify({
+        "version": VERSION,
+        "exported": time.strftime("%Y-%m-%d %H:%M"),
+        "layout": LAYOUT,
+        "names": NAMES,
+        "scenes": SCENES,
+        "schedules": SCHEDULES,
+        "party_themes": PARTY_THEMES,
+        "automation": AUTOMATION,
+        "lan_devices": LAN_MAP,
+    })
+
+
+@app.route("/api/backup", methods=["POST"])
+def api_backup_restore():
+    global LAYOUT, NAMES, SCENES, SCHEDULES, PARTY_THEMES, AUTOMATION, LAN_MAP
+    body = request.get_json(force=True) or {}
+    restored = []
+    if isinstance(body.get("layout"), dict):
+        LAYOUT = body["layout"]; _write_json(os.path.join(BASE_DIR, "layout.json"), LAYOUT); restored.append("layout")
+    if isinstance(body.get("names"), dict):
+        NAMES = body["names"]; _write_json(os.path.join(BASE_DIR, "names.json"), NAMES); restored.append("names")
+    if isinstance(body.get("scenes"), dict):
+        SCENES = body["scenes"]; _write_json(os.path.join(BASE_DIR, "scenes.json"), SCENES); restored.append("scenes")
+    if isinstance(body.get("schedules"), list):
+        SCHEDULES = body["schedules"]; _write_json(os.path.join(BASE_DIR, "schedules.json"), SCHEDULES); restored.append("schedules")
+    if isinstance(body.get("party_themes"), dict):
+        PARTY_THEMES = body["party_themes"]; _write_json(os.path.join(BASE_DIR, "party.json"), PARTY_THEMES); restored.append("party_themes")
+    if isinstance(body.get("automation"), dict):
+        AUTOMATION = body["automation"]; _write_json(os.path.join(BASE_DIR, "automation.json"), AUTOMATION); restored.append("automation")
+    if isinstance(body.get("lan_devices"), dict):
+        LAN_MAP = body["lan_devices"]; _write_json(os.path.join(BASE_DIR, "lan_devices.json"), LAN_MAP); restored.append("lan_devices")
+    return jsonify(restored=restored)
 
 
 if __name__ == "__main__":
