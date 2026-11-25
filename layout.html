@@ -454,8 +454,9 @@
   .chip-color{ width:24px; height:24px; border-radius:50%; border:2px solid rgba(255,255,255,0.3); padding:0; justify-content:center; }
   .chip-color .x{ font-size:9px; }
   .muted{ font-size:11px; color:var(--ink-faint); }
-  .sim-row{ display:flex; justify-content:center; gap:8px; padding:12px; margin-bottom:10px; background:rgba(0,0,0,0.25); border-radius:12px; border:1px solid var(--stroke); }
-  .sim-bulb{ width:26px; height:34px; border-radius:50% 50% 45% 45%; background:#111; transition:background 60ms linear; }
+  .sim-yard{ position:relative; height:240px; background:rgba(0,0,0,0.25); border-radius:12px; border:1px solid var(--stroke); margin-bottom:10px; overflow:hidden; }
+  .sim-bulb{ position:absolute; width:30px; height:38px; border-radius:50% 50% 45% 45%; background:#111; transform:translate(-50%,-50%); cursor:grab; transition:background 60ms linear; }
+  .sim-bulb.dragging{ cursor:grabbing; z-index:50; transform:translate(-50%,-50%) scale(1.15); }
   .sim-status{ text-align:center; font-size:11px; color:var(--ink-faint); margin-bottom:8px; }
 
   .field{
@@ -749,8 +750,8 @@
     <h3><span>🎛</span> Party modes</h3>
     <div class="modal-sub">Edit which effects and colors each party mode cycles through, or create your own.</div>
     <div id="partyPreview">
-      <div class="sim-row" id="simRow"></div>
-      <div class="sim-status" id="simStatus">Pick a mode and hit ▶ to simulate it here before testing on the real bulbs.</div>
+      <div class="sim-yard" id="simYard"><div id="simLayer"></div></div>
+      <div class="sim-status" id="simStatus">Mirrors your real layout — drag the bulbs to rearrange, then hit ▶ to preview a mode.</div>
     </div>
     <div id="partyList"></div>
     <div class="field" style="margin-top:12px;">
@@ -1121,7 +1122,7 @@ async function openPartyEditor(){
     (await fetch('/api/effects')).json(),
   ]);
   THEMES = t; ALL_EFFECTS = e;
-  populateSimRow();
+  await buildSimYard();
   renderPartyEditor();
 }
 function chip(label, fn){
@@ -1222,10 +1223,59 @@ function shade(rgb, f){
   if(!m) return rgb;
   return `rgb(${Math.round(m[0]*f)},${Math.round(m[1]*f)},${Math.round(m[2]*f)})`;
 }
-function populateSimRow(){
-  const row = document.getElementById('simRow');
-  row.innerHTML = '';
-  for(let i=0;i<10;i++){ const b = document.createElement('div'); b.className = 'sim-bulb'; row.appendChild(b); }
+let simBulbs = [];
+async function buildSimYard(){
+  const layer = document.getElementById('simLayer');
+  layer.innerHTML = '';
+  let positions = [];
+  try {
+    const d = await (await fetch('/api/layout')).json();
+    positions = (d.bulbs || []).map(b => ({x: b.x, y: b.y}));
+  } catch(e) {}
+  if(!positions.length){
+    positions = Array.from({length: 8}, (_, i) => ({x: 0.06 + i*0.115, y: 0.5}));
+  }
+  simBulbs = positions.map(p => {
+    const el = document.createElement('div');
+    el.className = 'sim-bulb';
+    el.style.left = (p.x*100)+'%';
+    el.style.top = (p.y*100)+'%';
+    el.addEventListener('pointerdown', e => simStartDrag(e, el));
+    layer.appendChild(el);
+    return {x: p.x, y: p.y, el};
+  });
+}
+let simDrag = null;
+function simStartDrag(e, el){
+  simDrag = {el};
+  const rect = document.getElementById('simYard').getBoundingClientRect();
+  const b = simBulbs.find(b => b.el === el);
+  const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+  simDrag.offX = b.x*rect.width - cx;
+  simDrag.offY = b.y*rect.height - cy;
+  el.classList.add('dragging');
+  el.setPointerCapture(e.pointerId);
+  el.addEventListener('pointermove', simOnDrag);
+  el.addEventListener('pointerup', simEndDrag);
+}
+function simOnDrag(e){
+  if(!simDrag) return;
+  const rect = document.getElementById('simYard').getBoundingClientRect();
+  const b = simBulbs.find(b => b.el === simDrag.el);
+  let x = (e.clientX - rect.left + simDrag.offX) / rect.width;
+  let y = (e.clientY - rect.top + simDrag.offY) / rect.height;
+  x = Math.max(0.02, Math.min(0.98, x));
+  y = Math.max(0.05, Math.min(0.95, y));
+  b.x = x; b.y = y;
+  b.el.style.left = (x*100)+'%';
+  b.el.style.top = (y*100)+'%';
+}
+function simEndDrag(e){
+  if(!simDrag) return;
+  simDrag.el.classList.remove('dragging');
+  simDrag.el.removeEventListener('pointermove', simOnDrag);
+  simDrag.el.removeEventListener('pointerup', simEndDrag);
+  simDrag = null;
 }
 function pickSimEffect(){
   const cfg = THEMES[sim.theme] || {};
@@ -1242,7 +1292,7 @@ function pickSimEffect(){
   sim.effectDur = (sim.theme === 'christmas' ? 18 : 22) * 1000;
 }
 function renderSim(t){
-  const bulbs = document.querySelectorAll('.sim-bulb');
+  const bulbs = [...simBulbs].sort((a,b) => a.x - b.x);
   const n = bulbs.length;
   const col = sim.colors.length ? sim.colors : ['rgb(255,255,255)'];
   for(let i=0;i<n;i++){
@@ -1268,8 +1318,8 @@ function renderSim(t){
       case 'candycane': c = col[i%2]; break;
       default: c = col[i%col.length];
     }
-    bulbs[i].style.background = c;
-    bulbs[i].style.boxShadow = `0 0 12px ${c}`;
+    bulbs[i].el.style.background = c;
+    bulbs[i].el.style.boxShadow = `0 0 12px ${c}`;
   }
 }
 function tick(now){
@@ -1289,7 +1339,7 @@ function startSim(name){
 function stopSim(){
   sim.running = false;
   if(sim.raf) cancelAnimationFrame(sim.raf);
-  document.querySelectorAll('.sim-bulb').forEach(b => { b.style.background = '#111'; b.style.boxShadow = 'none'; });
+  simBulbs.forEach(b => { b.el.style.background = '#111'; b.el.style.boxShadow = 'none'; });
   document.getElementById('simStatus').textContent = 'Preview stopped.';
 }
 function togglePreview(name){
