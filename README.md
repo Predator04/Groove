@@ -21,7 +21,8 @@ the Govee app can't do.
 - **Presets** — Christmas, Classic Red/Green, All White, Red White Blue, Candy
 - **Per-bulb control** — click any bulb to set color, brightness, on/off
 - **Scheduler** — run any effect at a set time, daily recurring (persists)
-- **Dusk-to-dawn** — auto on at sunset, off at sunrise (real sun times for your location)
+- **Dusk-to-dawn** — auto on at sunset, off at sunrise (enter your ZIP code)
+- **Scenes** — save/recall whole color layouts; each scene gets a trigger URL (Siri/Stream Deck)
 - **Zero rate limit** — raw UDP control, no cloud throttle
 
 ## Setup (under a minute)

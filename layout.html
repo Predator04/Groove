@@ -81,6 +81,7 @@
   <button class="off" id="linkBtn" onclick="toggleLinkMode()">🔗 Set order</button>
   <button class="off" onclick="surprise()">🎲 Surprise</button>
   <button class="off" onclick="openSched()">⏰ Schedule</button>
+  <button class="off" onclick="openScenes()">💾 Scenes</button>
 </header>
 
 <div id="yard">
@@ -100,10 +101,14 @@
   <div style="background:#12172a; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:20px; width:min(480px,92vw);">
     <h3 style="margin:0 0 4px;">⏰ Schedule an effect</h3>
     <div style="font-size:11px;color:#8b95b0;margin-bottom:12px;">Uses whatever effect + colors + speed you currently have selected.</div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:9px;">
-      <span style="font-size:12px;">🌇 Auto: on at sunset · off at sunrise</span>
-      <span style="flex:1"></span>
-      <button id="duskBtn" class="small off" onclick="toggleDusk()">Enable</button>
+    <div style="margin-bottom:12px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:9px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:12px;">🌇 Auto: on at sunset · off at sunrise</span>
+        <span style="flex:1"></span>
+        <input id="zipInput" placeholder="ZIP code" style="width:84px;background:#0c101c;border:1px solid rgba(255,255,255,.14);border-radius:7px;padding:6px 8px;color:#e8ecf5;font-size:12px;">
+        <button id="duskBtn" class="small off" onclick="toggleDusk()">Enable</button>
+      </div>
+      <div id="duskInfo" style="font-size:11px;color:#8b95b0;margin-top:4px;"></div>
     </div>
     <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
       <input type="time" id="schedTime" style="background:#0c101c;border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:8px;color:#e8ecf5;">
@@ -111,6 +116,19 @@
     </div>
     <div id="schedList" style="display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow:auto;"></div>
     <button class="off small" style="margin-top:14px;" onclick="document.getElementById('schedModal').style.display='none'">Close</button>
+  </div>
+</div>
+
+<div id="sceneModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:200; align-items:center; justify-content:center;">
+  <div style="background:#12172a; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:20px; width:min(480px,92vw);">
+    <h3 style="margin:0 0 4px;">💾 Scenes</h3>
+    <div style="font-size:11px;color:#8b95b0;margin-bottom:12px;">Save your current bulb colors, recall in one tap. Each scene also gets a trigger URL (for Siri / Stream Deck).</div>
+    <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+      <input id="sceneName" placeholder="Scene name" style="flex:1;background:#0c101c;border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:8px;color:#e8ecf5;font-size:13px;">
+      <button onclick="saveScene()">Save current</button>
+    </div>
+    <div id="sceneList" style="display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow:auto;"></div>
+    <button class="off small" style="margin-top:14px;" onclick="document.getElementById('sceneModal').style.display='none'">Close</button>
   </div>
 </div>
 
@@ -430,12 +448,20 @@ async function loadAutomation(){
   try{
     const r = await fetch('/api/automation'); const a = await r.json();
     const btn = document.getElementById('duskBtn');
-    btn.textContent = a.enabled ? `On ✓ (${a.sunset || '—'})` : 'Enable';
+    btn.textContent = a.enabled ? 'On ✓' : 'Enable';
     btn.className = a.enabled ? 'small' : 'small off';
+    document.getElementById('zipInput').value = a.zip || '';
+    const loc = a.city ? `${a.city}, ${a.state || ''}` : (a.lat ? `${a.lat.toFixed(2)}, ${a.lon.toFixed(2)}` : 'set your ZIP code');
+    document.getElementById('duskInfo').textContent = loc + (a.sunset ? ` · sunset ${a.sunset} · sunrise ${a.sunrise}` : '');
   }catch(e){}
 }
 async function toggleDusk(){
   const r = await fetch('/api/automation'); const a = await r.json();
+  const zip = document.getElementById('zipInput').value.trim();
+  if(zip && zip !== a.zip){
+    const g = await (await fetch('/api/geocode?zip='+encodeURIComponent(zip))).json();
+    if(g.lat){ a.zip = zip; a.lat = g.lat; a.lon = g.lon; a.city = g.city; a.state = g.state; }
+  }
   a.enabled = !a.enabled;
   if(a.enabled){
     a.effect = document.getElementById('effectSel').value;
@@ -444,6 +470,50 @@ async function toggleDusk(){
   }
   await fetch('/api/automation', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(a)});
   loadAutomation();
+}
+
+// ---- scenes ----
+function openScenes(){
+  document.getElementById('sceneModal').style.display = 'flex';
+  loadScenes();
+}
+async function loadScenes(){
+  try{
+    const r = await fetch('/api/scenes'); const scenes = await r.json();
+    const el = document.getElementById('sceneList');
+    const names = Object.keys(scenes);
+    el.innerHTML = names.length ? names.map(n => `
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:7px 10px;background:rgba(255,255,255,.04);border-radius:9px;">
+        <span>${n}</span>
+        <span style="flex:1"></span>
+        <button class="small" onclick="applyScene('${n.replace(/'/g,"\\'")}')">Apply</button>
+        <button class="small" onclick="copyTrigger('${n.replace(/'/g,"\\'")}')" title="copy trigger URL">🔗</button>
+        <button class="small off" onclick="delScene('${n.replace(/'/g,"\\'")}')">✕</button>
+      </div>`).join('') : '<span style="font-size:12px;color:#8b95b0">no scenes yet — set your colors, then save</span>';
+  }catch(e){}
+}
+async function saveScene(){
+  const name = document.getElementById('sceneName').value.trim();
+  if(!name) return;
+  const state = {};
+  bulbs.forEach(b => state[b.ip] = b.color);
+  await fetch('/api/scenes', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, state})});
+  document.getElementById('sceneName').value = '';
+  loadScenes();
+}
+async function applyScene(name){
+  await fetch('/api/scenes/'+encodeURIComponent(name)+'/apply', {method:'POST'});
+  const r = await fetch('/api/scenes'); const scenes = await r.json();
+  const state = scenes[name] || {};
+  bulbs.forEach(b => { if(state[b.ip]) setBulbColor(b, state[b.ip]); });
+}
+async function delScene(name){
+  await fetch('/api/scenes/'+encodeURIComponent(name), {method:'DELETE'});
+  loadScenes();
+}
+function copyTrigger(name){
+  const url = location.origin + '/trigger/' + encodeURIComponent(name);
+  navigator.clipboard.writeText(url).then(() => alert('copied: '+url)).catch(() => alert(url));
 }
 
 load();

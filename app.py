@@ -16,7 +16,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 BUILD_DATE = "2026-11-15"
 
 
@@ -928,11 +928,88 @@ def api_automation():
 def api_automation_set():
     global AUTOMATION
     body = request.get_json(force=True) or {}
-    for k in ("enabled", "lat", "lon", "on_at_sunset", "off_at_sunrise", "effect", "colors", "step_ms"):
+    for k in ("enabled", "lat", "lon", "on_at_sunset", "off_at_sunrise", "effect", "colors", "step_ms", "zip", "city", "state"):
         if k in body:
             AUTOMATION[k] = body[k]
     _write_json(os.path.join(os.path.dirname(os.path.abspath(__file__)), "automation.json"), AUTOMATION)
     return jsonify(saved=True, automation=AUTOMATION)
+
+
+@app.route("/api/geocode")
+def api_geocode():
+    zipc = request.args.get("zip", "").strip()
+    if not zipc:
+        return jsonify(error="zip is required"), 400
+    try:
+        r = requests.get(f"https://api.zippopotam.us/us/{zipc}", timeout=10)
+        if r.status_code != 200:
+            return jsonify(error=f"zip not found ({r.status_code})"), 404
+        d = r.json()
+        place = d["places"][0]
+        return jsonify(zip=zipc,
+                       lat=float(place["latitude"]), lon=float(place["longitude"]),
+                       city=place.get("place name", ""), state=place.get("state", ""))
+    except Exception as e:
+        return jsonify(error=str(e)), 500
+
+
+# ---- scenes (save/recall per-bulb colors) + trigger URL ----
+SCENES = _load_json("scenes.json", {})
+
+
+def _save_scenes():
+    _write_json(os.path.join(os.path.dirname(os.path.abspath(__file__)), "scenes.json"), SCENES)
+
+
+@app.route("/api/scenes", methods=["GET"])
+def api_scenes():
+    return jsonify(SCENES)
+
+
+@app.route("/api/scenes", methods=["POST"])
+def api_scenes_save():
+    global SCENES
+    body = request.get_json(force=True) or {}
+    name = (body.get("name") or "").strip()
+    state = body.get("state") or {}
+    if not name or not state:
+        return jsonify(error="name and state are required"), 400
+    SCENES[name] = state
+    _save_scenes()
+    return jsonify(saved=True, name=name, bulbs=len(state))
+
+
+@app.route("/api/scenes/<name>", methods=["DELETE"])
+def api_scenes_del(name):
+    global SCENES
+    if name in SCENES:
+        del SCENES[name]
+        _save_scenes()
+        return jsonify(deleted=True)
+    return jsonify(error="not found"), 404
+
+
+@app.route("/api/scenes/<name>/apply", methods=["POST"])
+def api_scenes_apply(name):
+    state = SCENES.get(name)
+    if not state:
+        return jsonify(error="scene not found"), 404
+    for ip, rgb in state.items():
+        lan_turn(ip, True)
+        lan_color(ip, rgb)
+    return jsonify(applied=True, name=name, bulbs=len(state))
+
+
+@app.route("/trigger/<name>")
+def trigger_scene(name):
+    """Public trigger URL — hit /trigger/<scene> to recall a scene (Siri, Stream Deck, bookmark)."""
+    state = SCENES.get(name)
+    if not state:
+        return jsonify(error="unknown trigger"), 404
+    for ip, rgb in state.items():
+        lan_turn(ip, True)
+        lan_color(ip, rgb)
+    return jsonify(applied=True, name=name)
 
 
 @app.route("/")
