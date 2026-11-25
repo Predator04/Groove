@@ -1387,14 +1387,15 @@ let chaseColors = [[255,0,0],[0,255,0],[0,0,255]];
 let chasing = false;
 
 function hex(rgb){ return '#'+rgb.map(c=>c.toString(16).padStart(2,'0')).join(''); }
+function esc(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 async function load(){
   const r = await fetch('/api/devices'); const d = await r.json();
   devices = (d.data && d.data.devices) ? d.data.devices.filter(x=>x.controllable) : [];
   document.getElementById('grid').innerHTML = devices.map((dev,i)=>`
     <div class="card">
-      <h2>${dev.deviceName || ('Bulb '+(i+1))}</h2>
-      <div class="mac">${dev.model} · ${dev.device}</div>
+      <h2>${esc(dev.deviceName || ('Bulb '+(i+1)))}</h2>
+      <div class="mac">${esc(dev.model)} · ${esc(dev.device)}</div>
       <div class="row">
         <input type="color" value="#ffffff" oninput="setColor(${i},this.value)">
         <button onclick="toggle(${i})">On/Off</button>
