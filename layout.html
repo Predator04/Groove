@@ -473,6 +473,8 @@
   .builder-side{ width:300px; padding:14px; overflow-y:auto; border-left:1px solid var(--stroke); }
   .side-label{ font-size:11px; color:var(--ink-faint); margin:12px 0 6px; text-transform:uppercase; letter-spacing:0.5px; }
   .b-title{ font-size:16px; font-weight:700; }
+  .upnext-card{ padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.03); border:1px solid var(--stroke); margin-bottom:10px; }
+  .upnext-row{ font-size:12px; color:var(--ink); padding:3px 0; }
   .sim-status{ text-align:center; font-size:11px; color:var(--ink-faint); margin-bottom:8px; }
 
   .field{
@@ -692,6 +694,11 @@
         <button id="duskBtn" class="small off" onclick="toggleDusk()">Enable</button>
       </div>
       <div id="duskInfo"></div>
+    </div>
+
+    <div class="upnext-card">
+      <div class="side-label">📅 What's turning on</div>
+      <div id="upNext"></div>
     </div>
 
     <div class="field">
@@ -1554,6 +1561,7 @@ async function loadSchedules(){
         <button class="small ghost" onclick="delSched('${s.id}')">✕</button>
       </div>`).join('') : '<div class="empty"><span class="emoji">🌙</span>No schedules yet.<br>Pick a time above, then tap Add.</div>');
   }catch(e){}
+  loadUpNext();
 }
 async function addSchedule(){
   const t = document.getElementById('schedTime').value;
@@ -1586,6 +1594,7 @@ async function loadAutomation(){
     const loc = a.city ? `${a.city}, ${a.state || ''}` : (a.lat ? `${a.lat.toFixed(2)}, ${a.lon.toFixed(2)}` : 'set your ZIP code');
     document.getElementById('duskInfo').textContent = loc + (a.sunset ? ` · sunset ${a.sunset} · sunrise ${a.sunrise}` : '');
   }catch(e){}
+  loadUpNext();
 }
 async function toggleDusk(){
   const r = await fetch('/api/automation'); const a = await r.json();
@@ -1608,6 +1617,28 @@ async function saveDuskTheme(){
   const a = await (await fetch('/api/automation')).json();
   a.theme = document.getElementById('duskTheme').value;
   await fetch('/api/automation', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(a)});
+}
+async function loadUpNext(){
+  const box = document.getElementById('upNext');
+  if(!box) return;
+  const rows = [];
+  try {
+    const a = await (await fetch('/api/automation')).json();
+    if(a.enabled){
+      const what = a.theme ? a.theme : (a.effect || 'effect');
+      if(a.on_at_sunset && a.sunset) rows.push({icon:'🌇', text:`<b>${a.sunset}</b> — lights on · ${what}`});
+      if(a.off_at_sunrise && a.sunrise) rows.push({icon:'🌅', text:`<b>${a.sunrise}</b> — lights off`});
+    }
+  } catch(e){}
+  try {
+    const list = await (await fetch('/api/schedules')).json();
+    list.forEach(s => { if(s.enabled) rows.push({icon:'⏰', text:`<b>${s.time}</b> — ${s.name || s.effect}`}); });
+  } catch(e){}
+  if(!rows.length){
+    box.innerHTML = '<div class="muted">Nothing scheduled. Turn on 🌇 Auto above, or add a time below.</div>';
+    return;
+  }
+  box.innerHTML = rows.map(r => `<div class="upnext-row">${r.icon} ${r.text}</div>`).join('');
 }
 
 // ---- scenes ----
