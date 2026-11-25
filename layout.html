@@ -454,6 +454,9 @@
   .chip-color{ width:24px; height:24px; border-radius:50%; border:2px solid rgba(255,255,255,0.3); padding:0; justify-content:center; }
   .chip-color .x{ font-size:9px; }
   .muted{ font-size:11px; color:var(--ink-faint); }
+  .sim-row{ display:flex; justify-content:center; gap:8px; padding:12px; margin-bottom:10px; background:rgba(0,0,0,0.25); border-radius:12px; border:1px solid var(--stroke); }
+  .sim-bulb{ width:26px; height:34px; border-radius:50% 50% 45% 45%; background:#111; transition:background 60ms linear; }
+  .sim-status{ text-align:center; font-size:11px; color:var(--ink-faint); margin-bottom:8px; }
 
   .field{
     display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;
@@ -742,9 +745,13 @@
 
 <div id="partyModal" class="modal">
   <div class="sheet">
-    <button class="close-x" onclick="document.getElementById('partyModal').style.display='none'">✕</button>
+    <button class="close-x" onclick="stopSim();document.getElementById('partyModal').style.display='none'">✕</button>
     <h3><span>🎛</span> Party modes</h3>
     <div class="modal-sub">Edit which effects and colors each party mode cycles through, or create your own.</div>
+    <div id="partyPreview">
+      <div class="sim-row" id="simRow"></div>
+      <div class="sim-status" id="simStatus">Pick a mode and hit ▶ to simulate it here before testing on the real bulbs.</div>
+    </div>
     <div id="partyList"></div>
     <div class="field" style="margin-top:12px;">
       <input id="newThemeName" type="text" placeholder="New party name (e.g. Halloween)">
@@ -1114,6 +1121,7 @@ async function openPartyEditor(){
     (await fetch('/api/effects')).json(),
   ]);
   THEMES = t; ALL_EFFECTS = e;
+  populateSimRow();
   renderPartyEditor();
 }
 function chip(label, fn){
@@ -1129,9 +1137,12 @@ function renderPartyEditor(){
     const sec = document.createElement('div'); sec.className = 'theme-sec';
     const head = document.createElement('div'); head.className = 'theme-head';
     const title = document.createElement('b'); title.textContent = name;
+    const prev = document.createElement('button'); prev.className = 'small ghost'; prev.textContent = '▶';
+    prev.title = 'Simulate this mode on the virtual bulbs';
+    prev.onclick = () => togglePreview(name);
     const run = document.createElement('button'); run.className = 'small'; run.textContent = 'Run';
     run.onclick = () => startTheme(name);
-    head.appendChild(title); head.appendChild(run);
+    head.appendChild(title); head.appendChild(prev); head.appendChild(run);
     if(name !== 'christmas' && name !== 'random'){
       const del = document.createElement('button'); del.className = 'small ghost'; del.textContent = '✕';
       del.onclick = () => deleteTheme(name);
@@ -1203,6 +1214,87 @@ async function deleteTheme(name){
 async function startTheme(name){
   await api('/api/party/start', {theme: name});
   document.getElementById('partyModal').style.display = 'none';
+}
+
+let sim = { raf: null, theme: null, effect: 'solid', colors: [], effectStart: 0, effectDur: 22000, running: false };
+function shade(rgb, f){
+  const m = rgb.match(/\d+/g);
+  if(!m) return rgb;
+  return `rgb(${Math.round(m[0]*f)},${Math.round(m[1]*f)},${Math.round(m[2]*f)})`;
+}
+function populateSimRow(){
+  const row = document.getElementById('simRow');
+  row.innerHTML = '';
+  for(let i=0;i<10;i++){ const b = document.createElement('div'); b.className = 'sim-bulb'; row.appendChild(b); }
+}
+function pickSimEffect(){
+  const cfg = THEMES[sim.theme] || {};
+  const effects = (cfg.effects && cfg.effects.length) ? cfg.effects : ['solid'];
+  const palettes = cfg.palettes || [];
+  sim.effect = effects[Math.floor(Math.random()*effects.length)];
+  if(palettes.length){
+    sim.colors = palettes[Math.floor(Math.random()*palettes.length)].map(c => `rgb(${c[0]},${c[1]},${c[2]})`);
+  } else {
+    const n = 3 + Math.floor(Math.random()*4);
+    sim.colors = Array.from({length:n}, () => `rgb(${Math.floor(Math.random()*256)},${Math.floor(Math.random()*256)},${Math.floor(Math.random()*256)})`);
+  }
+  sim.effectStart = performance.now();
+  sim.effectDur = (sim.theme === 'christmas' ? 18 : 22) * 1000;
+}
+function renderSim(t){
+  const bulbs = document.querySelectorAll('.sim-bulb');
+  const n = bulbs.length;
+  const col = sim.colors.length ? sim.colors : ['rgb(255,255,255)'];
+  for(let i=0;i<n;i++){
+    let c = '#111';
+    switch(sim.effect){
+      case 'solid': c = col[0]; break;
+      case 'strobe': case 'disco': c = (Math.floor(t*8)%2===0) ? col[i%col.length] : '#111'; break;
+      case 'twinkle': case 'sparkle': case 'fireflies': case 'confetti': case 'fireworks':
+        c = (Math.random() < 0.25) ? col[i%col.length] : '#222'; break;
+      case 'chase': case 'comet': case 'larson': case 'snake': case 'marquee': case 'meteor': {
+        const head = Math.floor(t*6) % n;
+        const d = Math.min(Math.abs(i-head), n-Math.abs(i-head));
+        c = shade(col[i%col.length], Math.max(0, 1-d*0.35)); break;
+      }
+      case 'wave': case 'gradient': case 'rainbow': case 'plasma': case 'drip': case 'pendulum': {
+        const phase = (i/n + t*0.5) % 1;
+        c = col[Math.floor(phase*col.length)%col.length]; break;
+      }
+      case 'breathe': case 'pulse': {
+        const p = (Math.sin(t*3)+1)/2;
+        c = shade(col[0], 0.15+0.85*p); break;
+      }
+      case 'candycane': c = col[i%2]; break;
+      default: c = col[i%col.length];
+    }
+    bulbs[i].style.background = c;
+    bulbs[i].style.boxShadow = `0 0 12px ${c}`;
+  }
+}
+function tick(now){
+  if(!sim.running) return;
+  if(now - sim.effectStart > sim.effectDur){ pickSimEffect(); sim.effectStart = now; }
+  renderSim((now - sim.effectStart)/1000);
+  sim.raf = requestAnimationFrame(tick);
+}
+function startSim(name){
+  stopSim();
+  sim.theme = name;
+  sim.running = true;
+  pickSimEffect();
+  sim.raf = requestAnimationFrame(tick);
+  document.getElementById('simStatus').textContent = `Previewing "${name}" — hit ▶ again to stop, or Run to test on the real bulbs.`;
+}
+function stopSim(){
+  sim.running = false;
+  if(sim.raf) cancelAnimationFrame(sim.raf);
+  document.querySelectorAll('.sim-bulb').forEach(b => { b.style.background = '#111'; b.style.boxShadow = 'none'; });
+  document.getElementById('simStatus').textContent = 'Preview stopped.';
+}
+function togglePreview(name){
+  if(sim.running && sim.theme === name){ stopSim(); }
+  else { startSim(name); }
 }
 
 // ---- scheduler ----
