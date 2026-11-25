@@ -16,7 +16,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 BUILD_DATE = "2026-11-15"
 
 
@@ -101,9 +101,12 @@ LAN_MAP = _load_lan_map()
 def lan_control(ip, cmd, data):
     """Fire-and-forget UDP command to a bulb's LAN API (no ACK, no rate limit)."""
     msg = json.dumps({"msg": {"cmd": cmd, "data": data}}).encode()
-    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    s.sendto(msg, (ip, LAN_PORT))
-    s.close()
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.sendto(msg, (ip, LAN_PORT))
+        s.close()
+    except Exception:
+        pass  # one bulb offline must not kill the whole effect
 
 
 def lan_color(ip, rgb):
@@ -116,6 +119,12 @@ def lan_turn(ip, on):
 
 def lan_brightness(ip, pct):
     lan_control(ip, "brightness", {"value": int(pct)})
+
+
+def _hsv(h, s=1.0, v=1.0):
+    import colorsys
+    r, g, b = colorsys.hsv_to_rgb(h % 1.0, s, v)
+    return [int(r * 255), int(g * 255), int(b * 255)]
 
 
 # ---- effects engine (LAN UDP, no rate limit) ----
@@ -184,13 +193,13 @@ def _run_effect(ip_list, effect, colors, step_ms):
                 if _effect_stop.is_set(): break
                 for ip in ip_list: lan_brightness(ip, b)
                 _effect_stop.wait(step_ms / 1000.0)
-            for b in range(90, 4, -10):
+            for b in range(90, 0, -10):
                 if _effect_stop.is_set(): break
                 for ip in ip_list: lan_brightness(ip, b)
                 _effect_stop.wait(step_ms / 1000.0)
 
     elif effect == "fire":
-        warm = [[255, 60, 0], [255, 120, 0], [255, 40, 10], [255, 150, 40], [200, 30, 0]]
+        warm = colors or [[255, 60, 0], [255, 120, 0], [255, 40, 10], [255, 150, 40], [200, 30, 0]]
         for ip in ip_list: lan_turn(ip, True)
         while not _effect_stop.is_set():
             for ip in ip_list:
@@ -208,6 +217,102 @@ def _run_effect(ip_list, effect, colors, step_ms):
                 else:
                     lan_turn(ip, False)
             _effect_stop.wait(step_ms / 1000.0)
+
+    elif effect == "sparkle":
+        for ip in ip_list:
+            lan_turn(ip, True); lan_color(ip, colors[0]); lan_brightness(ip, 10)
+        while not _effect_stop.is_set():
+            i = random.randrange(n)
+            lan_brightness(ip_list[i], 100)
+            _effect_stop.wait(0.12)
+            lan_brightness(ip_list[i], 10)
+            _effect_stop.wait(max(step_ms, 100) / 1000.0)
+
+    elif effect == "heartbeat":
+        while not _effect_stop.is_set():
+            for _ in range(2):
+                for ip in ip_list:
+                    lan_turn(ip, True); lan_color(ip, colors[0]); lan_brightness(ip, 100)
+                _effect_stop.wait(0.15)
+                for ip in ip_list: lan_brightness(ip, 30)
+                _effect_stop.wait(0.1)
+            _effect_stop.wait(max(step_ms, 900) / 1000.0)
+
+    elif effect == "lightning":
+        for ip in ip_list:
+            lan_turn(ip, True); lan_color(ip, colors[0]); lan_brightness(ip, 15)
+        while not _effect_stop.is_set():
+            _effect_stop.wait(random.uniform(2, 8))
+            if _effect_stop.is_set(): break
+            i = random.randrange(n)
+            for _ in range(3):
+                lan_color(ip_list[i], [255, 255, 255]); lan_brightness(ip_list[i], 100)
+                _effect_stop.wait(0.08)
+                lan_brightness(ip_list[i], 15)
+                _effect_stop.wait(0.05)
+            lan_color(ip_list[i], colors[0])
+
+    elif effect == "police":
+        half = max(1, n // 2)
+        flip = False
+        while not _effect_stop.is_set():
+            flip = not flip
+            for i, ip in enumerate(ip_list):
+                left = i < half
+                c = [255, 0, 0] if (left == flip) else [0, 40, 255]
+                lan_turn(ip, True); lan_color(ip, c)
+            _effect_stop.wait(max(step_ms, 100) / 1000.0)
+
+    elif effect == "rainbow":
+        for ip in ip_list: lan_turn(ip, True)
+        t = 0.0
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                lan_color(ip, _hsv(i / max(n, 1) + t))
+            t += 0.04
+            _effect_stop.wait(max(step_ms, 80) / 1000.0)
+
+    elif effect == "countdown":
+        for ip in ip_list:
+            lan_turn(ip, True); lan_color(ip, colors[0])
+        total_s = max(step_ms, 3000) / 1000.0
+        for i in range(n):
+            if _effect_stop.is_set(): return
+            _effect_stop.wait(total_s / max(n, 1))
+            lan_turn(ip_list[i], False)
+        for _ in range(4):
+            if _effect_stop.is_set(): return
+            for ip in ip_list: lan_turn(ip, True)
+            _effect_stop.wait(0.15)
+            for ip in ip_list: lan_turn(ip, False)
+            _effect_stop.wait(0.15)
+        for ip in ip_list:
+            lan_turn(ip, True); lan_color(ip, colors[0])
+
+    elif effect == "sos":
+        def blink(dur):
+            for ip in ip_list:
+                lan_turn(ip, True); lan_color(ip, colors[0])
+            _effect_stop.wait(dur)
+            for ip in ip_list: lan_turn(ip, False)
+            _effect_stop.wait(0.2)
+        while not _effect_stop.is_set():
+            for _ in range(3): blink(0.2)
+            for _ in range(3): blink(0.6)
+            for _ in range(3): blink(0.2)
+            _effect_stop.wait(1.0)
+
+    elif effect == "ocean":
+        depths = colors or [[0, 40, 120], [0, 90, 150], [0, 140, 170], [20, 170, 180]]
+        for ip in ip_list: lan_turn(ip, True)
+        t = 0
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                lan_color(ip, depths[(i + t) % len(depths)])
+            if random.random() < 0.3:
+                lan_color(ip_list[random.randrange(n)], [120, 240, 255])
+            t += 1
+            _effect_stop.wait(max(step_ms, 300) / 1000.0)
 
     elif effect in ("gradient", "solid"):
         for i, ip in enumerate(ip_list):
@@ -254,6 +359,40 @@ def version():
     )
 
 
+GITHUB_REPO = "Predator04/Groove"
+
+
+def _parse_ver(v):
+    import re
+    try:
+        parts = []
+        for x in v.lstrip("v").split("."):
+            m = re.match(r"\d+", x)
+            parts.append(int(m.group()) if m else 0)
+        return tuple((parts + [0, 0, 0])[:3])
+    except Exception:
+        return (0, 0, 0)
+
+
+@app.route("/api/update")
+def api_update():
+    """Check the GitHub releases feed for a newer version (update notification only)."""
+    try:
+        r = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest",
+                         headers={"Accept": "application/vnd.github+json",
+                                  "User-Agent": f"Groove/{VERSION}"}, timeout=8)
+        if r.status_code != 200:
+            return jsonify(current=VERSION, latest=None, update_available=False,
+                           error=f"release check unavailable ({r.status_code})")
+        data = r.json()
+        latest = data.get("tag_name", "")
+        return jsonify(current=VERSION, latest=latest,
+                       update_available=_parse_ver(latest) > _parse_ver(VERSION),
+                       url=data.get("html_url", ""))
+    except Exception as e:
+        return jsonify(current=VERSION, latest=None, update_available=False, error=str(e))
+
+
 @app.route("/api/devices")
 def api_devices():
     if not API_KEY:
@@ -266,10 +405,12 @@ def api_devices():
 def api_control():
     if not API_KEY:
         return jsonify(error="GOVEE_API_KEY not set"), 400
-    body = request.get_json(force=True)
-    dev = body["device"]
-    model = body["model"]
-    cmd = body["cmd"]
+    body = request.get_json(force=True) or {}
+    dev = body.get("device")
+    model = body.get("model")
+    cmd = body.get("cmd")
+    if not (dev and model and cmd):
+        return jsonify(error="device, model and cmd are required"), 400
     return jsonify(control(dev, model, cmd))
 
 
@@ -279,6 +420,8 @@ def api_state():
         return jsonify(error="GOVEE_API_KEY not set"), 400
     dev = request.args.get("device")
     model = request.args.get("model")
+    if not (dev and model):
+        return jsonify(error="device and model are required"), 400
     return jsonify(get_state(dev, model))
 
 
@@ -310,28 +453,37 @@ def api_lan_devices():
 
 @app.route("/api/lan/control", methods=["POST"])
 def api_lan_control():
-    body = request.get_json(force=True)
-    ip = body["ip"]
-    cmd = body["cmd"]          # {"name": "color", "value": {...}} OR {"name":"turn","value":1}
-    name = cmd["name"]
-    val = cmd["value"]
+    body = request.get_json(force=True) or {}
+    ip = body.get("ip")
+    cmd = body.get("cmd") or {}
+    name = cmd.get("name")
+    val = cmd.get("value")
+    if not ip or not name:
+        return jsonify(error="ip and cmd.name are required"), 400
     if name == "color":
         lan_color(ip, (val["r"], val["g"], val["b"]))
     elif name == "turn":
         lan_turn(ip, bool(val))
     elif name == "brightness":
         lan_brightness(ip, val)
+    else:
+        return jsonify(error=f"unknown cmd name: {name}"), 400
     return jsonify(ok=True)
 
 
 @app.route("/api/effect/start", methods=["POST"])
 def api_effect_start():
     global _effect_thread
-    body = request.get_json(force=True)
-    ips = body["ips"]
+    body = request.get_json(force=True) or {}
+    ips = body.get("ips") or []
     effect = body.get("effect", "chase")
     colors = body.get("colors", [[255, 0, 0]])
     step_ms = int(body.get("step_ms", 400))
+    if not ips:
+        return jsonify(error="ips is required"), 400
+    _effect_stop.set()
+    if _effect_thread and _effect_thread.is_alive():
+        _effect_thread.join(timeout=2)
     _effect_stop.clear()
     _effect_thread = threading.Thread(target=_run_effect, args=(ips, effect, colors, step_ms), daemon=True)
     _effect_thread.start()
@@ -365,6 +517,13 @@ def _load_json(name, default):
         return default
 
 
+def _write_json(path, data):
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, path)
+
+
 LAYOUT = _load_json("layout.json", {})
 NAMES = _load_json("names.json", {})
 
@@ -373,7 +532,7 @@ def refresh_names():
     global NAMES
     try:
         data = list_devices()
-        for d in data["data"]["devices"]:
+        for d in ((data.get("data") or {}).get("devices") or []):
             NAMES[d["device"]] = d["deviceName"]
         with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "names.json"), "w") as f:
             json.dump(NAMES, f, indent=2)
@@ -442,7 +601,9 @@ def api_presets():
 # ---- setup + discovery ----
 @app.route("/api/effects")
 def api_effects():
-    return jsonify(["chase", "wave", "twinkle", "meteor", "breathe", "fire", "strobe", "gradient", "solid"])
+    return jsonify(["chase", "wave", "twinkle", "meteor", "breathe", "fire", "strobe",
+                    "gradient", "solid", "sparkle", "heartbeat", "lightning", "police",
+                    "rainbow", "countdown", "sos", "ocean"])
 
 
 @app.route("/api/scan")
@@ -468,12 +629,16 @@ def api_scan():
             while True:
                 try:
                     data, addr = rx.recvfrom(65535)
+                except socket.timeout:
+                    break
+                try:
                     j = json.loads(data)
                     d = j["msg"]["data"]
                     dev = d.get("device")
-                    found[dev] = {"ip": addr[0], "sku": d.get("sku"), "name": NAMES.get(dev, dev)}
-                except socket.timeout:
-                    break
+                    if dev:
+                        found[dev] = {"ip": addr[0], "sku": d.get("sku"), "name": NAMES.get(dev, dev)}
+                except Exception:
+                    continue
         tx.close(); rx.close()
     except Exception as e:
         return jsonify({"found": found, "error": str(e)})
@@ -484,18 +649,24 @@ def api_scan():
 def api_setup():
     """One-shot setup: save API key + LAN device map, then refresh names."""
     global LAN_MAP, API_KEY
-    body = request.get_json(force=True)
+    body = request.get_json(force=True) or {}
     cfg_dir = os.path.dirname(os.path.abspath(__file__))
     key = body.get("api_key", "")
     devices = body.get("devices", {})
+    if not key and not devices:
+        return jsonify(error="api_key or devices is required"), 400
+    if devices:
+        clean = {k: v for k, v in devices.items()
+                 if isinstance(k, str) and isinstance(v, str) and v.count(".") == 3}
+        if not clean:
+            return jsonify(error="devices must be {device_id: ipv4}"), 400
+        devices = clean
     if key:
-        with open(os.path.join(cfg_dir, "config.json"), "w") as f:
-            json.dump({"api_key": key}, f, indent=2)
+        _write_json(os.path.join(cfg_dir, "config.json"), {"api_key": key})
         API_KEY = key
     if devices:
+        _write_json(os.path.join(cfg_dir, "lan_devices.json"), devices)
         LAN_MAP = devices
-        with open(os.path.join(cfg_dir, "lan_devices.json"), "w") as f:
-            json.dump(devices, f, indent=2)
     if key:
         refresh_names()
     return jsonify(saved=True, api_key=bool(key), bulbs=len(LAN_MAP))

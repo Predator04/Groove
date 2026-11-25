@@ -13,8 +13,8 @@ the Govee app can't do.
 
 ## Features
 
-- **9 effects**: Chase (running lights), Wave, Twinkle, Meteor (comet with tail),
-  Breathe (fade pulse), Fire (flicker), Strobe, Gradient, Solid
+- **17 effects**: Chase, Wave, Twinkle, Meteor, Breathe, Fire, Strobe, Gradient,
+  Solid, Sparkle, Heartbeat, Lightning, Police, Rainbow, Countdown, SOS, Ocean
 - **Drag & drop layout** — arrange your bulbs on a canvas to match your real
   setup; the chase follows the left-to-right order
 - **Presets** — Christmas, Classic Red/Green, All White, Red White Blue, Candy
@@ -54,6 +54,7 @@ Open **http://localhost:8813/layout**:
 - `POST /api/setup` `{api_key, devices}` — one-shot onboarding
 - `GET /api/presets` · `GET /api/layout` · `POST /api/layout` — presets + saved arrangement
 - `POST /api/lan/control` — instant per-bulb UDP control
+- `GET /api/update` — checks GitHub for a newer version (shows an in-app banner)
 
 ## LAN protocol (reference)
 

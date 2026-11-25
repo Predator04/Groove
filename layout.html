@@ -36,6 +36,9 @@
 </style>
 </head>
 <body>
+<div id="updateBanner" style="display:none; position:fixed; top:0; left:0; right:0; background:linear-gradient(90deg,#7048e8,#3b5bdb); color:#fff; padding:10px 16px; font-size:13px; z-index:100; text-align:center; box-shadow:0 4px 16px rgba(0,0,0,.4);">
+  ⬆️ Update available: <b id="updateVer"></b> — <a id="updateUrl" href="#" target="_blank" style="color:#fff;font-weight:bold;text-decoration:underline;">View release</a>
+</div>
 <header>
   <h1>💡 Groove Layout</h1>
   <span class="hint">drag bulbs to arrange · chase runs left→right</span>
@@ -50,6 +53,14 @@
     <option value="strobe">💥 Strobe</option>
     <option value="gradient">🌈 Gradient</option>
     <option value="solid">🎨 Solid</option>
+    <option value="sparkle">💫 Sparkle</option>
+    <option value="heartbeat">💓 Heartbeat</option>
+    <option value="lightning">⚡ Lightning</option>
+    <option value="police">🚔 Police</option>
+    <option value="rainbow">🌀 Rainbow</option>
+    <option value="countdown">⏱️ Countdown</option>
+    <option value="sos">🆘 SOS</option>
+    <option value="ocean">🐠 Ocean</option>
   </select>
   <select id="presetSel" onchange="applyPreset(this.value)" style="background:#1a2233;color:#e8ecf5;border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:7px 10px;font-size:12px;">
     <option value="">✨ Presets…</option>
@@ -277,6 +288,19 @@ async function applyPreset(name){
 
 load();
 loadPresets();
+
+// update notification
+async function checkUpdates(){
+  try{
+    const r = await fetch('/api/update'); const d = await r.json();
+    if(d.update_available){
+      document.getElementById('updateBanner').style.display = 'block';
+      document.getElementById('updateVer').textContent = d.latest;
+      document.getElementById('updateUrl').href = d.url || 'https://github.com/Predator04/Groove/releases';
+    }
+  }catch(e){}
+}
+checkUpdates();
 </script>
 </body>
 </html>
