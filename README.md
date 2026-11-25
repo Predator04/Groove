@@ -1,69 +1,159 @@
-# 💡 Groove
+# 🎛 Groove
 
-A self-hosted web controller for Govee "Giant LED" bulbs (H6008 and other
-Wi-Fi+BLE models). No app, no ads, no cloud rate limit — just your bulbs,
-your network, your rules.
+**Your Govee lights, actually yours.** A self-hosted controller for Govee H6008 (and other LAN-compatible) smart bulbs — no ads, no cloud lag, no 10-commands-per-minute throttle.
 
-## Why
+Groove talks to your bulbs **directly over your local network (UDP)**, so effects run instantly and free of Govee's cloud rate limit. One Flask server + a beautiful glassmorphism dashboard is all there is.
 
-Govee's official API caps you at **10 commands/min per bulb**, which makes
-fast synchronized effects impossible. Groove talks to your bulbs directly
-over the LAN (UDP port 4003) — **zero rate limit** — and gives you effects
-the Govee app can't do.
+---
 
-## Features
+## ✨ Features
 
-- **24 effects**: Chase, Wave, Twinkle, Meteor, Breathe, Fire, Strobe, Gradient,
-  Solid, Sparkle, Heartbeat, Lightning, Police, Rainbow, Countdown, SOS, Ocean,
-  Candy Cane, Jack-o-Lantern, Fireworks, Disco, Aurora, Sunset, Movie
-- **Drag & drop layout** — arrange your bulbs on a canvas to match your real
-  setup; the chase follows the left-to-right order
-- **Presets** — Christmas, Classic Red/Green, All White, Red White Blue, Candy
-- **Per-bulb control** — click any bulb to set color, brightness, on/off
-- **Scheduler** — run any effect at a set time, daily recurring (persists)
-- **Dusk-to-dawn** — auto on at sunset, off at sunrise (enter your ZIP code)
-- **Scenes** — save/recall whole color layouts; each scene gets a trigger URL (Siri/Stream Deck)
-- **Zero rate limit** — raw UDP control, no cloud throttle
+- **34 effects** — chase, wave, twinkle, meteor, breathe, fire, strobe, sparkle, heartbeat, lightning, police, rainbow, countdown, SOS, ocean, candy cane, jack-o'-lantern, fireworks, disco, aurora, sunset, movie, pendulum, Larson scanner, confetti, fireflies, comet, color drip, marquee, snake, thunderstorm, plasma, gradient, solid.
+- **Drag-and-drop layout** — arrange bulbs on a canvas to match their real positions; effects travel along the chain.
+- **Click-to-link ordering** — physically jumbled? Click bulbs in the order you want effects to run (1→2→3…), and the software does the rest.
+- **Party mode** 🎉 + **Christmas party** 🎄 — auto-rotates random (or Christmas) effects and colors every ~20s. Runs on the **server**, so it keeps going even with the dashboard closed.
+- **Presets** — one-tap saved setups (Christmas, Red/White/Blue, All White…).
+- **Scheduler** — run any effect at a set time.
+- **Dusk-to-dawn** — lights on at sunset, off at sunrise, from your ZIP code.
+- **Scenes + trigger URLs** — save a color setup, recall in one tap, and get a `/trigger/<scene>` URL for Siri Shortcuts, Stream Deck, or a bookmark.
+- **Add / remove / rename lights** — LAN scan or manual device-ID + IP, straight from the dashboard.
+- **Live color mirroring** — the on-screen bulbs glow in their real current color, live.
+- **Zero rate limit** — raw LAN UDP control bypasses Govee's cloud throttle entirely.
 
-## Setup (under a minute)
+---
 
-1. Install Python 3 and `pip install -r requirements.txt`
-2. Run `python app.py` → open **http://localhost:8813/setup**
-3. Paste your **Govee API key** (Govee Home app → Profile → About → Apply for API Key — it's emailed to you)
-4. In the Govee Home app, open each bulb → ⚙️ → **LAN Control** → on
-5. Click **Scan for bulbs**, then **Save & open dashboard**
+## 📸 Screenshots
 
-That's it. The setup page writes `config.json` (key) and `lan_devices.json`
-(bulb → IP) for you — no manual file editing.
+![Dashboard](screenshots/dashboard.png)
 
-## The dashboard
+![Setup](screenshots/setup.png)
 
-Open **http://localhost:8813/layout**:
+---
 
-- **Drag bulbs** to match your physical layout (auto-saves)
-- Pick an **effect** + **preset**, set speed, hit **Start**
-- Click a bulb for color / brightness / power
+## 🚀 Quick start
 
-## Requirements
+### Option A — Windows (.exe)
 
-- Machine on the **same Wi-Fi** as the bulbs (multicast/broadcast must be allowed)
-- Govee bulbs with **LAN Control enabled** (per device)
-- Govee API key (for device names + fallback cloud control)
+1. Download `Groove.exe` from the latest [GitHub release](https://github.com/Predator04/Groove/releases/latest).
+2. Double-click it. A console window opens and prints `Running on http://0.0.0.0:8813`.
+3. Open **http://localhost:8813/setup** in a browser.
 
-## Endpoints
+### Option B — Docker (Synology NAS / any Linux)
 
-- `GET /api/devices` · `POST /api/control` · `GET /api/state` — cloud API
-- `POST /api/effect/start` `{ips, effect, colors, step_ms}` · `POST /api/effect/stop` — LAN effects
-- `GET /api/scan` — LAN discovery
-- `POST /api/setup` `{api_key, devices}` — one-shot onboarding
-- `GET /api/presets` · `GET /api/layout` · `POST /api/layout` — presets + saved arrangement
-- `POST /api/lan/control` — instant per-bulb UDP control
-- `GET /api/update` — checks GitHub for a newer version (shows an in-app banner)
+```bash
+docker run -d --name groove \
+  --network host \
+  -v /path/to/groove-data:/data \
+  ghcr.io/predator04/groove:latest
+```
 
-## LAN protocol (reference)
+Then open `http://<your-nas-ip>:8813/setup`.
 
-- Discovery: UDP multicast `239.255.255.250:4001` → devices reply on `4002`
-- Control: UDP unicast to `device-ip:4003` (fire-and-forget):
+> **`--network host` is required** — Groove discovers bulbs via UDP broadcast/multicast, which bridged Docker networks block.
+
+### Option C — Python (any OS)
+
+```bash
+pip install -r requirements.txt
+python app.py
+```
+
+---
+
+## 🛠 Setup (under a minute)
+
+1. Open **/setup**.
+2. **API key** *(optional)* — paste your Govee API key from [developer.govee.com](https://developer.govee.com) to fetch bulb names automatically. Skip this if you'll add bulbs by IP.
+3. In the Govee Home app, open each bulb → ⚙️ → **LAN Control** → on.
+4. Tap **Scan** to discover bulbs on your network, or add them manually.
+5. Tap **Save & open dashboard**.
+
+> A brand-new bulb must first be joined to your home WiFi via the Govee app. The scan only finds bulbs already on the network.
+
+---
+
+## 🎚 Using the dashboard
+
+| You want to… | Do this |
+|---|---|
+| Add a light | **➕ Add** → **🔍 Scan**, or type Device ID + IP |
+| Arrange bulbs | Drag them on the canvas |
+| Set effect order | **🔗 Set order** → click bulbs 1→2→3… → **Done** |
+| Change the color set | Tap **+ color** to add, tap a swatch to remove |
+| Run an effect | Pick from the dropdown → set **Step** speed → **Start** |
+| Stop | **Stop** |
+| Random show | **🎲 Surprise** (once) or **🎉 Party** (continuous) |
+| Christmas show | **🎄 Christmas** (continuous, server-side) |
+| Rename a bulb | Click it → type a name → Enter |
+| Save a scene | **💾 Scenes** → name → **Save current** |
+| Schedule an effect | **⏰ Schedule** → time → Add |
+| Auto on at sunset | **⏰ Schedule** → enter ZIP → toggle **🌇 Auto** |
+| Full in-app guide | **❓ Help** |
+
+---
+
+## 🔌 Trigger URLs (automation)
+
+Every scene gets a public URL:
+
+```
+http://<your-host>:8813/trigger/<scene-name>
+```
+
+Use it anywhere that can hit a URL — Siri Shortcuts, Stream Deck, Home Assistant, a cron job, an NFC tag.
+
+## 🔌 API (for other tools)
+
+- `GET  /api/lan/devices` — list device → IP map
+- `POST /api/lan/control` — `{ip, cmd:{name:"color"|"turn"|"brightness", value}}`
+- `POST /api/lan/add` / `POST /api/lan/remove` / `POST /api/lan/rename` — manage lights
+- `POST /api/effect/start` — `{ips, effect, colors, step_ms}`
+- `POST /api/party/start` — `{theme:"christmas"|"random"}` (server-side, survives page close)
+- `GET  /api/current` — live per-bulb state
+- `GET  /api/scan` — LAN discovery
+- `GET  /api/update` — checks GitHub for a newer version (shows an in-app banner)
+
+---
+
+## 🧰 Building from source
+
+**Windows .exe** (run in PowerShell):
+
+```powershell
+pip install pyinstaller
+pyinstaller --onefile --add-data "layout.html;." --add-data "setup.html;." `
+  --add-data "assets;assets" --name Groove app.py
+```
+
+The `.exe` lands in `dist/Groove.exe`. Config (`config.json`, `lan_devices.json`, `names.json`, `layout.json`) is created next to the `.exe` on first run.
+
+**Docker image**:
+
+```bash
+docker build -t groove .
+```
+
+---
+
+## 🔌 LAN protocol (reference)
+
+- **Discovery:** UDP multicast `239.255.255.250:4001` → devices reply on `4002`
+- **Control:** UDP unicast to `device-ip:4003` (fire-and-forget):
   - `{"msg":{"cmd":"turn","data":{"value":0|1}}}`
   - `{"msg":{"cmd":"brightness","data":{"value":1-100}}}`
   - `{"msg":{"cmd":"colorwc","data":{"color":{"r","g","b"},"colorTemInKelvin":0}}}`
+
+---
+
+## 🐞 Troubleshooting
+
+- **No bulbs found by scan** — the bulb isn't joined to WiFi yet (join via Govee app), or it's on a different VLAN/subnet. Add it manually by Device ID + IP.
+- **A bulb doesn't respond** — it's offline or its IP changed (DHCP). Give bulbs static/reserved IPs in your router, then update them via **➕ Add**.
+- **Port already in use** — set the `PORT` env var to a different port.
+- **Can't reach from another device** — the server binds `0.0.0.0` by default; allow port 8813 through your OS firewall.
+
+---
+
+## 📜 License
+
+MIT. Free to use, modify, and share.

@@ -3,6 +3,10 @@ config.json
 lan_devices.json
 layout.json
 names.json
+presets.json
+schedules.json
+scenes.json
+automation.json
 
 # python
 __pycache__/
@@ -10,3 +14,11 @@ __pycache__/
 .venv/
 venv/
 .env
+
+# build artifacts
+build/
+dist/
+*.spec
+
+# local data
+data/

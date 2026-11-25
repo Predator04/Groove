@@ -4,6 +4,7 @@ No Govee app, no ads. Full control: on/off, brightness, RGB color, color temp,
 plus a custom timed chase across bulbs.
 """
 import os
+import sys
 import time
 import json
 import socket
@@ -16,15 +17,24 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "1.9.0"
+VERSION = "2.0.0"
 BUILD_DATE = "2026-11-15"
+
+# config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
+if getattr(sys, "frozen", False):
+    BASE_DIR = os.path.dirname(sys.executable)
+    RES_DIR = getattr(sys, "_MEIPASS", BASE_DIR)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    RES_DIR = BASE_DIR
+BASE_DIR = os.environ.get("GROOVE_DATA_DIR") or BASE_DIR
 
 
 def _load_key():
     k = os.environ.get("GOVEE_API_KEY", "")
     if k:
         return k
-    cfg = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.json")
+    cfg = os.path.join(BASE_DIR, "config.json")
     try:
         with open(cfg) as f:
             return json.load(f).get("api_key", "")
@@ -87,7 +97,7 @@ LAN_PORT = 4003
 
 
 def _load_lan_map():
-    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "lan_devices.json")
+    p = os.path.join(BASE_DIR, "lan_devices.json")
     try:
         with open(p) as f:
             return json.load(f)  # {device_id: ip}
@@ -690,7 +700,7 @@ def api_lan_add():
     if len(parts) != 4 or not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
         return jsonify(error="invalid ipv4"), 400
     LAN_MAP[device_id] = ip
-    _write_json(os.path.join(os.path.dirname(os.path.abspath(__file__)), "lan_devices.json"), LAN_MAP)
+    _write_json(os.path.join(BASE_DIR, "lan_devices.json"), LAN_MAP)
     try:
         refresh_names()
     except Exception:
@@ -706,7 +716,7 @@ def api_lan_remove():
     if not device_id:
         return jsonify(error="device_id is required"), 400
     LAN_MAP.pop(device_id, None)
-    _write_json(os.path.join(os.path.dirname(os.path.abspath(__file__)), "lan_devices.json"), LAN_MAP)
+    _write_json(os.path.join(BASE_DIR, "lan_devices.json"), LAN_MAP)
     return jsonify(removed=True, bulbs=len(LAN_MAP))
 
 
@@ -718,7 +728,7 @@ def api_lan_rename():
     if not device_id or not name:
         return jsonify(error="device_id and name are required"), 400
     NAMES[device_id] = name
-    _write_json(os.path.join(os.path.dirname(os.path.abspath(__file__)), "names.json"), NAMES)
+    _write_json(os.path.join(BASE_DIR, "names.json"), NAMES)
     return jsonify(saved=True, name=name)
 
 
@@ -842,7 +852,7 @@ def api_lan_chase_stop():
 
 # ---- visual layout dashboard (drag & drop) ----
 def _load_json(name, default):
-    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), name)
+    p = os.path.join(BASE_DIR, name)
     try:
         with open(p) as f:
             return json.load(f)
@@ -867,7 +877,7 @@ def refresh_names():
         data = list_devices()
         for d in ((data.get("data") or {}).get("devices") or []):
             NAMES[d["device"]] = d["deviceName"]
-        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "names.json"), "w") as f:
+        with open(os.path.join(BASE_DIR, "names.json"), "w") as f:
             json.dump(NAMES, f, indent=2)
     except Exception:
         pass
@@ -896,14 +906,14 @@ def api_layout_get():
 def api_layout_save():
     global LAYOUT
     LAYOUT = request.get_json(force=True)
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "layout.json"), "w") as f:
+    with open(os.path.join(BASE_DIR, "layout.json"), "w") as f:
         json.dump(LAYOUT, f, indent=2)
     return jsonify(saved=True, count=len(LAYOUT))
 
 
 @app.route("/layout")
 def layout_page():
-    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "layout.html")
+    p = os.path.join(RES_DIR, "layout.html")
     try:
         with open(p) as f:
             return f.read()
@@ -913,7 +923,7 @@ def layout_page():
 
 @app.route("/setup")
 def setup_page():
-    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "setup.html")
+    p = os.path.join(RES_DIR, "setup.html")
     try:
         with open(p) as f:
             return f.read()
@@ -924,7 +934,7 @@ def setup_page():
 @app.route("/assets/<path:filename>")
 def serve_asset(filename):
     from flask import send_from_directory
-    assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+    assets_dir = os.path.join(RES_DIR, "assets")
     return send_from_directory(assets_dir, filename)
 
 
@@ -1000,7 +1010,7 @@ def api_setup():
     """One-shot setup: save API key + LAN device map, then refresh names."""
     global LAN_MAP, API_KEY
     body = request.get_json(force=True) or {}
-    cfg_dir = os.path.dirname(os.path.abspath(__file__))
+    cfg_dir = BASE_DIR
     key = body.get("api_key", "")
     devices = body.get("devices", {})
     if not key and not devices:
@@ -1039,7 +1049,7 @@ SCHEDULES = _load_json("schedules.json", [])
 
 
 def _save_schedules():
-    _write_json(os.path.join(os.path.dirname(os.path.abspath(__file__)), "schedules.json"), SCHEDULES)
+    _write_json(os.path.join(BASE_DIR, "schedules.json"), SCHEDULES)
 
 
 def _scheduler_loop():
@@ -1191,7 +1201,7 @@ def api_automation_set():
     for k in ("enabled", "lat", "lon", "on_at_sunset", "off_at_sunrise", "effect", "colors", "step_ms", "zip", "city", "state"):
         if k in body:
             AUTOMATION[k] = body[k]
-    _write_json(os.path.join(os.path.dirname(os.path.abspath(__file__)), "automation.json"), AUTOMATION)
+    _write_json(os.path.join(BASE_DIR, "automation.json"), AUTOMATION)
     return jsonify(saved=True, automation=AUTOMATION)
 
 
@@ -1218,7 +1228,7 @@ SCENES = _load_json("scenes.json", {})
 
 
 def _save_scenes():
-    _write_json(os.path.join(os.path.dirname(os.path.abspath(__file__)), "scenes.json"), SCENES)
+    _write_json(os.path.join(BASE_DIR, "scenes.json"), SCENES)
 
 
 @app.route("/api/scenes", methods=["GET"])

@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.git/
+.gitignore
+config.json
+lan_devices.json
+layout.json
+names.json
+presets.json
+schedules.json
+scenes.json
+automation.json
+data/
+dist/
+build/
+*.spec
+.github/

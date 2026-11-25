@@ -437,6 +437,13 @@
     font-size:15px; font-weight:400;
   }
   .modal .close-x:hover{ background: rgba(255,255,255,0.08); color:var(--ink); transform:none; }
+  .help-sec{
+    font-size:13px; line-height:1.55; color:var(--ink-dim);
+    padding:10px 12px; border-radius:10px;
+    background:rgba(255,255,255,0.03); border:1px solid var(--stroke);
+    margin-bottom:8px;
+  }
+  .help-sec b{ color:var(--ink); }
 
   .field{
     display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;
@@ -611,6 +618,7 @@
   <button class="off" onclick="openSched()">⏰ Schedule</button>
   <button class="off" onclick="openScenes()">💾 Scenes</button>
   <button class="off" onclick="openAdd()">➕ Add</button>
+  <button class="off" onclick="openHelp()">❓ Help</button>
 </header>
 
 <div id="yard">
@@ -683,6 +691,41 @@
       <input id="addIp" type="text" placeholder="IP (e.g. 192.168.1.50)" style="width:150px;">
       <button onclick="addManual()">Add</button>
     </div>
+  </div>
+</div>
+
+<div id="helpModal" class="modal">
+  <div class="sheet">
+    <button class="close-x" onclick="document.getElementById('helpModal').style.display='none'">✕</button>
+    <h3><span>❓</span> How to use Groove</h3>
+    <div class="modal-sub">Everything in one place — from first bulb to full light show.</div>
+
+    <div class="help-sec"><b>1 · Add your lights</b><br>
+      Tap <b>➕ Add</b> → <b>🔍 Scan</b> to find bulbs on your WiFi, or type a Device ID + IP manually. A brand-new bulb must first be joined to your WiFi via the Govee app.</div>
+
+    <div class="help-sec"><b>2 · Arrange the canvas</b><br>
+      Drag bulbs to match where they really are. Tap <b>🔗 Set order</b>, then click bulbs in the order you want effects to travel (1→2→3…), then tap <b>Done</b>. Effects and chases follow this order.</div>
+
+    <div class="help-sec"><b>3 · Choose colors</b><br>
+      The palette is your color set — every effect uses it. Tap <b>+ color</b> to add a random color, tap a swatch to delete it.</div>
+
+    <div class="help-sec"><b>4 · Run an effect</b><br>
+      Pick one of 34 effects from the dropdown, set the <b>Step</b> speed slider, tap <b>Start</b>. Tap <b>Stop</b> to end it. The bulbs on the canvas glow in their real current color.</div>
+
+    <div class="help-sec"><b>🎉 Party · 🎄 Christmas</b><br>
+      Auto-rotates random (or Christmas) effects and colors every ~20 seconds. Runs on the server, so it keeps going even if you close this page. Tap the button again to stop.</div>
+
+    <div class="help-sec"><b>5 · Click a bulb</b><br>
+      Opens its controls: change color, on/off, brightness — or type a new name and press Enter to rename it.</div>
+
+    <div class="help-sec"><b>💾 Scenes</b><br>
+      Save the current colors as a named scene and recall it in one tap. Each scene gets a trigger URL — bookmark it, or use it in Siri Shortcuts / Stream Deck.</div>
+
+    <div class="help-sec"><b>⏰ Schedule</b><br>
+      Run any effect at a set time. The <b>🌇 Auto</b> toggle turns lights on at sunset and off at sunrise — just enter your ZIP code.</div>
+
+    <div class="help-sec"><b>✨ Presets · 🎲 Surprise</b><br>
+      <b>Presets</b> are one-tap saved setups. <b>Surprise</b> instantly picks a random effect with random colors.</div>
   </div>
 </div>
 
@@ -778,6 +821,7 @@ setInterval(pollCurrent, 200);
 
 // ---- add / remove lights ----
 function openAdd(){ document.getElementById('addModal').style.display = 'flex'; scanNew(); }
+function openHelp(){ document.getElementById('helpModal').style.display = 'flex'; }
 async function scanNew(){
   const list = document.getElementById('addList');
   list.innerHTML = '<div class="empty"><span class="emoji">📡</span>Scanning…</div>';
