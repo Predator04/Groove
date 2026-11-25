@@ -868,6 +868,8 @@ def api_party_themes_save():
     palettes = body.get("palettes") or []
     if not name:
         return jsonify(error="name is required"), 400
+    if any(c in name for c in "/?#"):
+        return jsonify(error="name cannot contain / ? #"), 400
     PARTY_THEMES[name] = {"effects": effects, "palettes": palettes}
     _write_json(os.path.join(BASE_DIR, "party.json"), PARTY_THEMES)
     return jsonify(saved=True, name=name)
@@ -1300,6 +1302,8 @@ def api_scenes_save():
     state = body.get("state") or {}
     if not name or not state:
         return jsonify(error="name and state are required"), 400
+    if any(c in name for c in "/?#"):
+        return jsonify(error="name cannot contain / ? #"), 400
     SCENES[name] = state
     _save_scenes()
     return jsonify(saved=True, name=name, bulbs=len(state))
