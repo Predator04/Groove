@@ -17,7 +17,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.10.0"
+VERSION = "2.11.0"
 BUILD_DATE = "2026-11-15"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -1497,6 +1497,20 @@ def api_background_get():
         if os.path.exists(os.path.join(BASE_DIR, "background" + ext)):
             return send_from_directory(BASE_DIR, "background" + ext)
     return jsonify(error="no background"), 404
+
+
+@app.route("/api/background", methods=["DELETE"])
+def api_background_delete():
+    removed = False
+    for e in _BG_EXTS:
+        p = os.path.join(BASE_DIR, "background" + e)
+        if os.path.exists(p):
+            try:
+                os.remove(p)
+                removed = True
+            except Exception:
+                pass
+    return jsonify(removed=removed)
 
 
 @app.route("/api/backup")

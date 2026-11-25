@@ -459,6 +459,8 @@
   .sim-bulb.dragging{ cursor:grabbing; z-index:50; transform:translate(-50%,-50%) scale(1.15); }
   .sim-bulb.hover{ outline:3px solid #fff; outline-offset:2px; }
   .sim-ord{ position:absolute; top:-14px; left:50%; transform:translateX(-50%); font-size:10px; font-weight:700; color:#fff; background:rgba(107,140,255,0.95); border-radius:50%; width:18px; height:18px; display:none; align-items:center; justify-content:center; pointer-events:none; }
+  .tipbox{ position:fixed; z-index:9999; max-width:280px; padding:9px 12px; border-radius:12px; background:rgba(16,20,34,0.96); border:1px solid var(--stroke); color:#e8ecf5; font-size:12.5px; line-height:1.45; box-shadow:0 12px 32px rgba(0,0,0,0.5); pointer-events:none; opacity:0; transform:translateY(4px); transition:opacity .15s, transform .15s; backdrop-filter:blur(10px); }
+  .tipbox.show{ opacity:1; transform:translateY(0); }
   .sim-palette{ display:flex; flex-wrap:wrap; gap:7px; padding:4px 2px; margin-bottom:8px; }
   .sim-swatch{ width:30px; height:30px; border-radius:50%; cursor:grab; border:2px solid rgba(255,255,255,0.45); box-shadow:0 0 6px rgba(0,0,0,0.4); }
   .sim-swatch:hover{ transform:scale(1.15); }
@@ -636,7 +638,7 @@
   </select>
 
   <div class="palette" id="palette"></div>
-  <button class="small ghost" onclick="addColor()">+ color</button>
+  <button class="small ghost" onclick="addColor()" data-tip="Add another color to the palette">+ color</button>
 
   <div class="speed" title="Effect step time">
     <span>Step</span>
@@ -644,17 +646,17 @@
     <span id="spdLbl">350ms</span>
   </div>
 
-  <button id="chaseBtn" onclick="toggleEffect()">Start</button>
-  <button class="off" onclick="stopChase()">Stop</button>
-  <button class="off" id="linkBtn" onclick="toggleLinkMode()">🔗 Set order</button>
-  <button class="off" onclick="surprise()">🎲 Surprise</button>
-  <button class="off" id="partyBtn" onclick="toggleParty()">🎉 Party</button>
-  <button class="off" id="xmasBtn" onclick="toggleChristmas()">🎄 Christmas</button>
-  <button class="off" onclick="openPartyEditor()">🎛 Party setup</button>
-  <button class="off" onclick="openSched()">⏰ Schedule</button>
-  <button class="off" onclick="openScenes()">💾 Scenes</button>
-  <button class="off" onclick="openAdd()">➕ Add</button>
-  <button class="off" onclick="openHelp()">❓ Help</button>
+  <button id="chaseBtn" onclick="toggleEffect()" data-tip="Start the selected effect on your lights">Start</button>
+  <button class="off" onclick="stopChase()" data-tip="Stop the running effect">Stop</button>
+  <button class="off" id="linkBtn" onclick="toggleLinkMode()" data-tip="Tap bulbs in the order effects should travel">🔗 Set order</button>
+  <button class="off" onclick="surprise()" data-tip="Pick a random effect and start it">🎲 Surprise</button>
+  <button class="off" id="partyBtn" onclick="toggleParty()" data-tip="Start the party mode loop">🎉 Party</button>
+  <button class="off" id="xmasBtn" onclick="toggleChristmas()" data-tip="Start the Christmas theme">🎄 Christmas</button>
+  <button class="off" onclick="openPartyEditor()" data-tip="Edit or create your own party themes">🎛 Party setup</button>
+  <button class="off" onclick="openSched()" data-tip="Set times for lights to turn on and off">⏰ Schedule</button>
+  <button class="off" onclick="openScenes()" data-tip="Save and recall lighting scenes">💾 Scenes</button>
+  <button class="off" onclick="openAdd()" data-tip="Add a bulb by its IP address">➕ Add</button>
+  <button class="off" onclick="openHelp()" data-tip="How to use Groove">❓ Help</button>
 </header>
 
 <div id="yard">
@@ -672,15 +674,15 @@
 
 <div id="panel">
   <input type="color" id="cpicker" oninput="setColor(this.value)">
-  <button class="small" onclick="togglePower()">On/Off</button>
+  <button class="small" onclick="togglePower()" data-tip="Turn all lights on or off">On/Off</button>
   <input type="range" id="bright" min="1" max="100" value="100" oninput="setBright(this.value)">
   <input id="pname" type="text" placeholder="Name" onchange="renameSelected(this.value)" style="font-size:12px;color:var(--ink);background:rgba(255,255,255,0.05);border:1px solid var(--stroke);border-radius:8px;padding:5px 8px;width:110px;">
-  <button class="small ghost" onclick="document.getElementById('panel').style.display='none'">✕</button>
+  <button class="small ghost" onclick="document.getElementById('panel').style.display='none'" data-tip="Close">✕</button>
 </div>
 
 <div id="schedModal" class="modal">
   <div class="sheet">
-    <button class="close-x" onclick="document.getElementById('schedModal').style.display='none'">✕</button>
+    <button class="close-x" onclick="document.getElementById('schedModal').style.display='none'" data-tip="Close">✕</button>
     <h3><span>⏰</span> Schedule an effect</h3>
     <div class="modal-sub">Uses whatever effect, colors, and speed you currently have selected in the header.</div>
 
@@ -694,7 +696,7 @@
           <option value="christmas">🎄 Christmas</option>
           <option value="random">🎉 Random</option>
         </select>
-        <button id="duskBtn" class="small off" onclick="toggleDusk()">Enable</button>
+        <button id="duskBtn" class="small off" onclick="toggleDusk()" data-tip="Turn sunset/sunrise automation on or off">Enable</button>
       </div>
       <div id="duskInfo"></div>
     </div>
@@ -706,7 +708,7 @@
 
     <div class="field">
       <input type="time" id="schedTime">
-      <button onclick="addSchedule()">Add</button>
+      <button onclick="addSchedule()" data-tip="Add this schedule">Add</button>
     </div>
     <div id="schedList" class="list"></div>
   </div>
@@ -714,12 +716,12 @@
 
 <div id="sceneModal" class="modal">
   <div class="sheet">
-    <button class="close-x" onclick="document.getElementById('sceneModal').style.display='none'">✕</button>
+    <button class="close-x" onclick="document.getElementById('sceneModal').style.display='none'" data-tip="Close">✕</button>
     <h3><span>💾</span> Scenes</h3>
     <div class="modal-sub">Save your current bulb colors and recall in one tap. Each scene also gets a trigger URL — paste it into Siri Shortcuts, Stream Deck, or a browser bookmark.</div>
     <div class="field">
       <input id="sceneName" type="text" placeholder="Scene name (e.g. Movie night)">
-      <button onclick="saveScene()">Save current</button>
+      <button onclick="saveScene()" data-tip="Save the current lights as a scene">Save current</button>
     </div>
     <div id="sceneList" class="list"></div>
   </div>
@@ -727,22 +729,22 @@
 
 <div id="addModal" class="modal">
   <div class="sheet">
-    <button class="close-x" onclick="document.getElementById('addModal').style.display='none'">✕</button>
+    <button class="close-x" onclick="document.getElementById('addModal').style.display='none'" data-tip="Close">✕</button>
     <h3><span>➕</span> Add a light</h3>
     <div class="modal-sub">Scan your network for a new Govee bulb, or add one manually by device ID + IP.</div>
-    <button class="small" onclick="scanNew()">🔍 Scan for new lights</button>
+    <button class="small" onclick="scanNew()" data-tip="Scan your network for Govee bulbs">🔍 Scan for new lights</button>
     <div id="addList" class="list" style="margin-top:12px;"></div>
     <div class="field" style="margin-top:14px;">
       <input id="addDev" type="text" placeholder="Device ID (e.g. DF:38:…)">
       <input id="addIp" type="text" placeholder="IP (e.g. 192.168.1.50)" style="width:150px;">
-      <button onclick="addManual()">Add</button>
+      <button onclick="addManual()" data-tip="Add this bulb by IP address">Add</button>
     </div>
   </div>
 </div>
 
 <div id="helpModal" class="modal">
   <div class="sheet">
-    <button class="close-x" onclick="document.getElementById('helpModal').style.display='none'">✕</button>
+    <button class="close-x" onclick="document.getElementById('helpModal').style.display='none'" data-tip="Close">✕</button>
     <h3><span>❓</span> How to use Groove</h3>
     <div class="modal-sub">Everything in one place — from first bulb to full light show.</div>
 
@@ -777,12 +779,12 @@
 
 <div id="partyModal" class="modal">
   <div class="sheet">
-    <button class="close-x" onclick="document.getElementById('partyModal').style.display='none'">✕</button>
+    <button class="close-x" onclick="document.getElementById('partyModal').style.display='none'" data-tip="Close">✕</button>
     <h3><span>🎛</span> Party modes</h3>
     <div class="modal-sub">Edit which effects and colors each party mode cycles through, or create your own.</div>
     <div id="partyList"></div>
     <div class="field" style="margin-top:12px;">
-      <button onclick="openBuilder()">🎨 Create mode</button>
+      <button onclick="openBuilder()" data-tip="Open the full-screen party builder">🎨 Create mode</button>
     </div>
   </div>
 </div>
@@ -791,15 +793,16 @@
   <div class="builder-head">
     <span class="b-title">🎛 Party Builder</span>
     <input id="builderName" type="text" placeholder="Name your mode (e.g. Halloween)">
-    <button onclick="saveBuiltMode()">💾 Save</button>
-    <button onclick="previewBuiltMode()">▶ Preview</button>
-    <button class="ghost" onclick="toggleSimLink()">🔗 Link</button>
-    <button class="ghost" onclick="toggleSimDelete()">🗑 Delete</button>
-    <button class="ghost" onclick="document.getElementById('bgFile').click()">🖼 Photo</button>
-    <button class="ghost" onclick="exportBackup()">📤 Export</button>
-    <button class="ghost" onclick="document.getElementById('importFile').click()">📥 Import</button>
-    <button class="ghost" onclick="shareImage()">📷 Share</button>
-    <button class="ghost" onclick="closeBuilder()">Back</button>
+    <button onclick="saveBuiltMode()" data-tip="Save this mode as a party theme">💾 Save</button>
+    <button onclick="previewBuiltMode()" data-tip="Preview this mode on your real bulbs">▶ Preview</button>
+    <button class="ghost" onclick="toggleSimLink()" data-tip="Tap bulbs in the order effects should travel">🔗 Link</button>
+    <button class="ghost" onclick="toggleSimDelete()" data-tip="Tap a bulb to remove it from Groove">🗑 Delete</button>
+    <button class="ghost" onclick="document.getElementById('bgFile').click()" data-tip="Upload a photo of the room to place bulbs on">🖼 Photo</button>
+    <button class="ghost" onclick="removeBackground()" data-tip="Remove the uploaded background photo">🚫 Remove photo</button>
+    <button class="ghost" onclick="exportBackup()" data-tip="Download a backup of all your settings">📤 Export</button>
+    <button class="ghost" onclick="document.getElementById('importFile').click()" data-tip="Restore settings from a backup file">📥 Import</button>
+    <button class="ghost" onclick="shareImage()" data-tip="Download a picture of your layout">📷 Share</button>
+    <button class="ghost" onclick="closeBuilder()" data-tip="Close the builder">Back</button>
   </div>
   <input type="file" id="bgFile" accept="image/*" style="display:none" onchange="uploadBackground(this.files[0])">
   <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importBackup(this.files[0])">
@@ -941,7 +944,7 @@ async function scanNew(){
     fresh.forEach(([dev, info]) => {
       const row = document.createElement('div');
       row.className = 'row';
-      row.innerHTML = `<span class="name">${esc(info.name || dev)}</span><code style="font-size:11px;color:var(--ink-dim)">${esc(info.ip)}</code><span style="flex:1"></span><button class="small" onclick="addDevice('${jsEsc(dev)}','${jsEsc(info.ip)}')">Add</button>`;
+      row.innerHTML = `<span class="name">${esc(info.name || dev)}</span><code style="font-size:11px;color:var(--ink-dim)">${esc(info.ip)}</code><span style="flex:1"></span><button class="small" onclick="addDevice('${jsEsc(dev)}','${jsEsc(info.ip)}')" data-tip="Add this bulb to Groove">Add</button>`;
       list.appendChild(row);
     });
   }catch(e){ list.innerHTML = '<div class="empty"><span class="emoji">🔎</span>Scan failed — add manually below.</div>'; }
@@ -1464,6 +1467,52 @@ function shareImage(){
   }
 }
 applyBackground();
+function removeBackground(){
+  fetch('/api/background', {method:'DELETE'}).then(()=>{
+    ['yard', 'simYard'].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.style.backgroundImage = '';
+    });
+    const st = document.getElementById('simStatus');
+    if(st) st.textContent = 'Background removed.';
+  });
+}
+(function(){
+  const tip = document.createElement('div');
+  tip.className = 'tipbox';
+  document.body.appendChild(tip);
+  let hideTimer = null;
+  function show(el){
+    const text = el.getAttribute('data-tip');
+    if(!text) return;
+    tip.textContent = text;
+    tip.classList.add('show');
+    const r = el.getBoundingClientRect();
+    let x = r.left + r.width/2 - tip.offsetWidth/2;
+    let y = r.top - tip.offsetHeight - 8;
+    if(y < 8) y = r.bottom + 8;
+    x = Math.max(8, Math.min(x, window.innerWidth - tip.offsetWidth - 8));
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  }
+  function hide(){ tip.classList.remove('show'); }
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest('[data-tip]');
+    if(el) show(el);
+  });
+  document.addEventListener('mouseout', e => {
+    const el = e.target.closest('[data-tip]');
+    if(el) hide();
+  });
+  document.addEventListener('click', e => {
+    const el = e.target.closest('[data-tip]');
+    if(el && ('ontouchstart' in window)){
+      clearTimeout(hideTimer);
+      show(el);
+      hideTimer = setTimeout(hide, 2200);
+    }
+  });
+})();
 let simDrag = null;
 function simStartDrag(e, el){
   if(simLinkMode || deleteMode) return;
@@ -1709,8 +1758,8 @@ async function loadSchedules(){
       <div class="row">
         <span class="name ${s.enabled?'':'off'}">⏱ ${to12(s.time)} · ${esc(s.name || s.effect)}</span>
         <span style="flex:1"></span>
-        <button class="small ${s.enabled?'':'off'}" onclick="toggleSched('${s.id}')">${s.enabled?'on':'off'}</button>
-        <button class="small ghost" onclick="delSched('${s.id}')">✕</button>
+        <button class="small ${s.enabled?'':'off'}" onclick="toggleSched('${s.id}')" data-tip="Turn this schedule on or off">${s.enabled?'on':'off'}</button>
+        <button class="small ghost" onclick="delSched('${s.id}')" data-tip="Delete this schedule">✕</button>
       </div>`).join('') : '<div class="empty"><span class="emoji">🌙</span>No schedules yet.<br>Pick a time above, then tap Add.</div>');
   }catch(e){}
   loadUpNext();
@@ -1807,9 +1856,9 @@ async function loadScenes(){
       <div class="row">
         <span class="name">💫 ${esc(n)}</span>
         <span style="flex:1"></span>
-        <button class="small" onclick="applyScene('${jsEsc(n)}')">Apply</button>
-        <button class="small ghost" onclick="copyTrigger('${jsEsc(n)}')" title="copy trigger URL">🔗</button>
-        <button class="small ghost" onclick="delScene('${jsEsc(n)}')">✕</button>
+        <button class="small" onclick="applyScene('${jsEsc(n)}')" data-tip="Apply this scene to your lights">Apply</button>
+        <button class="small ghost" onclick="copyTrigger('${jsEsc(n)}')" data-tip="Copy the URL to trigger this scene">🔗</button>
+        <button class="small ghost" onclick="delScene('${jsEsc(n)}')" data-tip="Delete this scene">✕</button>
       </div>`).join('') : '<div class="empty"><span class="emoji">🎨</span>No scenes yet.<br>Set your bulb colors, then tap Save current.</div>';
   }catch(e){}
 }
