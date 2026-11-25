@@ -736,7 +736,6 @@ function setBulbColor(b, rgb){
 
 // mirror the live LAN state so each bulb on the canvas shows its real current color
 async function pollCurrent(){
-  if(chaseTimer) return;  // the local chase mirror drives the animation; don't fight it
   try{
     const r = await fetch('/api/current'); const d = await r.json();
     for(const b of bulbs){
@@ -747,7 +746,7 @@ async function pollCurrent(){
     }
   }catch(e){}
 }
-setInterval(pollCurrent, 600);
+setInterval(pollCurrent, 200);
 
 // ---- drag ----
 let dragState = null;
@@ -888,9 +887,7 @@ async function toggleEffect(){
   await api('/api/effect/start', {ips, effect, colors:palette, step_ms:step});
   document.getElementById('chaseBtn').textContent = 'Running…';
   document.getElementById('chaseBtn').classList.add('active');
-  chasing = true; chaseIdx = 0; chaseLap = 0;
-  if(effect === 'chase'){ startLocalMirror(step); }
-  else { bulbs.forEach(b => b.el.classList.add('on')); }
+  chasing = true;
 }
 async function stopChase(){
   if(chasing){ await api('/api/effect/stop', {}); }
