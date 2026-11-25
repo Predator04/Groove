@@ -461,6 +461,7 @@
   .sim-ord{ position:absolute; top:-14px; left:50%; transform:translateX(-50%); font-size:10px; font-weight:700; color:#fff; background:rgba(107,140,255,0.95); border-radius:50%; width:18px; height:18px; display:none; align-items:center; justify-content:center; pointer-events:none; }
   .tipbox{ position:fixed; z-index:9999; max-width:280px; padding:9px 12px; border-radius:12px; background:rgba(16,20,34,0.96); border:1px solid var(--stroke); color:#e8ecf5; font-size:12.5px; line-height:1.45; box-shadow:0 12px 32px rgba(0,0,0,0.5); pointer-events:none; opacity:0; transform:translateY(4px); transition:opacity .15s, transform .15s; backdrop-filter:blur(10px); }
   .tipbox.show{ opacity:1; transform:translateY(0); }
+  #simLinks line{ stroke:#6b8cff; stroke-width:0.35; stroke-linecap:round; stroke-dasharray:1.2 1.6; filter:drop-shadow(0 0 1.5px rgba(107,140,255,0.6)); }
   .sim-palette{ display:flex; flex-wrap:wrap; gap:7px; padding:4px 2px; margin-bottom:8px; }
   .sim-swatch{ width:30px; height:30px; border-radius:50%; cursor:grab; border:2px solid rgba(255,255,255,0.45); box-shadow:0 0 6px rgba(0,0,0,0.4); }
   .sim-swatch:hover{ transform:scale(1.15); }
@@ -807,7 +808,7 @@
   <input type="file" id="bgFile" accept="image/*" style="display:none" onchange="uploadBackground(this.files[0])">
   <input type="file" id="importFile" accept=".json,application/json" style="display:none" onchange="importBackup(this.files[0])">
   <div class="builder-body">
-    <div class="sim-yard" id="simYard"><div id="simLayer"></div></div>
+    <div class="sim-yard" id="simYard"><svg id="simLinks" viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible;"></svg><div id="simLayer"></div></div>
     <div class="builder-side">
       <div class="side-label">🎨 Colors — drag onto a bulb to paint it</div>
       <div class="sim-palette" id="simPalette"></div>
@@ -1294,6 +1295,7 @@ function shade(rgb, f){
 let simBulbs = [];
 let simLink = [];
 let simLinkMode = false;
+let simLinkFrom = null;
 let deleteMode = false;
 const SIM_COLORS = [[255,0,0],[255,90,0],[255,170,0],[255,240,0],[150,255,0],[0,255,0],[0,220,200],[0,160,255],[0,60,255],[120,0,255],[220,0,255],[255,0,180],[255,255,255],[255,220,170],[255,120,120],[80,80,100]];
 async function buildSimYard(){
@@ -1348,7 +1350,7 @@ function toggleSimLink(){
   simLinkMode = !simLinkMode;
   deleteMode = false;
   document.getElementById('simStatus').textContent = simLinkMode
-    ? 'Link mode: tap bulbs in the order effects should travel. Tap 🔗 again when done.'
+    ? 'Link mode: drag from one bulb to another to connect them. Tap a linked bulb to unlink.'
     : 'Link order set — effects follow it.';
   refreshSimOrd();
 }
@@ -1361,13 +1363,49 @@ function toggleSimDelete(){
 }
 function simClick(b){
   if(deleteMode){ deleteSimBulb(b); return; }
-  if(simLinkMode){ linkSimBulb(b); return; }
+  if(simLinkMode){ return; }
 }
-function linkSimBulb(b){
-  const i = simLink.indexOf(b);
-  if(i >= 0){ simLink.splice(i, 1); }
-  else { simLink.push(b); }
+function linkDrag(from, to){
+  if(!from || !to || from === to) return;
+  simLink = simLink.filter(b => b !== from && b !== to);
+  if(!simLink.includes(from)) simLink.push(from);
+  simLink.push(to);
   refreshSimOrd();
+  drawSimLinks();
+}
+function unlinkSimBulb(b){
+  simLink = simLink.filter(x => x !== b);
+  refreshSimOrd();
+  drawSimLinks();
+}
+function drawSimLinks(){
+  const svg = document.getElementById('simLinks');
+  if(!svg) return;
+  svg.innerHTML = '';
+  for(let i = 0; i < simLink.length - 1; i++){
+    const a = simLink[i], b = simLink[i+1];
+    const ln = document.createElementNS('http://www.w3.org/2000/svg','line');
+    ln.setAttribute('x1', (a.x*100).toFixed(2));
+    ln.setAttribute('y1', (a.y*100).toFixed(2));
+    ln.setAttribute('x2', (b.x*100).toFixed(2));
+    ln.setAttribute('y2', (b.y*100).toFixed(2));
+    svg.appendChild(ln);
+  }
+}
+function simLinkDrop(e){
+  const L = simLinkFrom;
+  if(!L) return;
+  const moved = Math.abs(e.clientX - L.startX) + Math.abs(e.clientY - L.startY) > 8;
+  const t = document.elementFromPoint(e.clientX, e.clientY);
+  const toEl = t && t.closest('.sim-bulb');
+  const to = toEl && simBulbs.find(b => b.el === toEl);
+  if(moved && to && to !== L.b){
+    linkDrag(L.b, to);
+  } else if(!moved){
+    unlinkSimBulb(L.b);
+  }
+  L.el.removeEventListener('pointerup', simLinkDrop);
+  simLinkFrom = null;
 }
 function refreshSimOrd(){
   simBulbs.forEach(b => {
@@ -1515,7 +1553,13 @@ function removeBackground(){
 })();
 let simDrag = null;
 function simStartDrag(e, el){
-  if(simLinkMode || deleteMode) return;
+  if(deleteMode) return;
+  if(simLinkMode){
+    simLinkFrom = {b: simBulbs.find(b => b.el === el), el, startX: e.clientX, startY: e.clientY};
+    el.setPointerCapture(e.pointerId);
+    el.addEventListener('pointerup', simLinkDrop);
+    return;
+  }
   simDrag = {el};
   const rect = document.getElementById('simYard').getBoundingClientRect();
   const b = simBulbs.find(b => b.el === el);
