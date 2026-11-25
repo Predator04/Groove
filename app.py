@@ -17,7 +17,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.7.0"
+VERSION = "2.8.0"
 BUILD_DATE = "2026-11-15"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -516,9 +516,14 @@ def _run_effect(ip_list, effect, colors, step_ms):
                 else:
                     lan_brightness(ip, 4)
             idx += direction
-            if idx >= n - 1 or idx <= 0:
-                if random.random() < 0.5: direction *= -1
-            if random.random() < 0.06: direction *= -1
+            if idx >= n - 1:
+                idx = n - 1
+                direction = -1
+            elif idx <= 0:
+                idx = 0
+                direction = 1
+            elif random.random() < 0.06:
+                direction *= -1
             _effect_stop.wait(max(step_ms, 120) / 1000.0)
 
     elif effect == "thunderstorm":
@@ -662,9 +667,11 @@ def api_chase_start():
     global _chase_thread
     if not API_KEY:
         return jsonify(error="GOVEE_API_KEY not set"), 400
-    body = request.get_json(force=True)
-    devices = body["devices"]       # [{device, model}]
-    colors = body["colors"]         # [[r,g,b], ...]
+    body = request.get_json(force=True) or {}
+    devices = body.get("devices")
+    colors = body.get("colors")
+    if not isinstance(devices, list) or not isinstance(colors, list) or not colors:
+        return jsonify(error="devices and colors (lists) are required"), 400
     step_ms = int(body.get("step_ms", 1000))
     _chase_stop.clear()
     _chase_thread = threading.Thread(target=_run_chase, args=(devices, colors, step_ms), daemon=True)
@@ -742,14 +749,28 @@ def api_lan_control():
     if not ip or not name:
         return jsonify(error="ip and cmd.name are required"), 400
     if name == "color":
+        if not isinstance(val, dict) or not all(isinstance(val.get(k), int) for k in ("r", "g", "b")):
+            return jsonify(error="color needs {r,g,b} ints"), 400
         lan_color(ip, (val["r"], val["g"], val["b"]))
     elif name == "turn":
         lan_turn(ip, bool(val))
     elif name == "brightness":
-        lan_brightness(ip, val)
+        try:
+            b = int(val)
+        except (TypeError, ValueError):
+            return jsonify(error="brightness must be an int"), 400
+        lan_brightness(ip, b)
     else:
         return jsonify(error=f"unknown cmd name: {name}"), 400
     return jsonify(ok=True)
+
+
+EFFECTS = ["chase", "wave", "twinkle", "meteor", "breathe", "fire", "strobe",
+          "gradient", "solid", "sparkle", "heartbeat", "lightning", "police",
+          "rainbow", "countdown", "sos", "ocean", "candycane", "jacko",
+          "fireworks", "disco", "aurora", "sunset", "movie",
+          "pendulum", "larson", "confetti", "fireflies", "comet", "drip",
+          "marquee", "snake", "thunderstorm", "plasma"]
 
 
 def start_effect(ips, effect, colors, step_ms):
@@ -767,10 +788,14 @@ def api_effect_start():
     body = request.get_json(force=True) or {}
     ips = body.get("ips") or []
     effect = body.get("effect", "chase")
-    colors = body.get("colors", [[255, 0, 0]])
+    colors = body.get("colors") or [[255, 0, 0]]
     step_ms = int(body.get("step_ms", 400))
     if not ips:
         return jsonify(error="ips is required"), 400
+    if effect not in EFFECTS:
+        return jsonify(error=f"unknown effect: {effect}"), 400
+    if not isinstance(colors, list) or not colors:
+        return jsonify(error="colors must be a non-empty list"), 400
     start_effect(ips, effect, colors, step_ms)
     return jsonify(started=True, effect=effect, ips=len(ips), step_ms=step_ms)
 
@@ -831,9 +856,10 @@ def _start_party(theme):
     global _party_thread
     if not theme or theme not in PARTY_THEMES:
         theme = "random"
-    _party_stop.clear()
+    _party_stop.set()
     if _party_thread and _party_thread.is_alive():
-        _party_thread.join(timeout=1)
+        _party_thread.join(timeout=2)
+    _party_stop.clear()
     _party_thread = threading.Thread(target=_party_loop, args=(theme,), daemon=True)
     _party_thread.start()
 
@@ -863,13 +889,18 @@ def api_party_themes():
 @app.route("/api/party/themes", methods=["POST"])
 def api_party_themes_save():
     body = request.get_json(force=True) or {}
-    name = (body.get("name") or "").strip()
+    name = body.get("name")
     effects = body.get("effects") or []
     palettes = body.get("palettes") or []
+    if not isinstance(name, str):
+        return jsonify(error="name must be a string"), 400
+    name = name.strip()
     if not name:
         return jsonify(error="name is required"), 400
     if any(c in name for c in "/?#"):
         return jsonify(error="name cannot contain / ? #"), 400
+    if not isinstance(effects, list) or not isinstance(palettes, list):
+        return jsonify(error="effects and palettes must be lists"), 400
     PARTY_THEMES[name] = {"effects": effects, "palettes": palettes}
     _write_json(os.path.join(BASE_DIR, "party.json"), PARTY_THEMES)
     return jsonify(saved=True, name=name)
@@ -950,7 +981,10 @@ def api_layout_get():
 @app.route("/api/layout", methods=["POST"])
 def api_layout_save():
     global LAYOUT
-    LAYOUT = request.get_json(force=True)
+    data = request.get_json(force=True)
+    if not isinstance(data, dict):
+        return jsonify(error="layout must be a {device_id: {x, y, order}} object"), 400
+    LAYOUT = data
     with open(os.path.join(BASE_DIR, "layout.json"), "w") as f:
         json.dump(LAYOUT, f, indent=2)
     return jsonify(saved=True, count=len(LAYOUT))
@@ -1004,12 +1038,7 @@ def api_presets():
 # ---- setup + discovery ----
 @app.route("/api/effects")
 def api_effects():
-    return jsonify(["chase", "wave", "twinkle", "meteor", "breathe", "fire", "strobe",
-                    "gradient", "solid", "sparkle", "heartbeat", "lightning", "police",
-                    "rainbow", "countdown", "sos", "ocean", "candycane", "jacko",
-                    "fireworks", "disco", "aurora", "sunset", "movie",
-                    "pendulum", "larson", "confetti", "fireflies", "comet", "drip",
-                    "marquee", "snake", "thunderstorm", "plasma"])
+    return jsonify(EFFECTS)
 
 
 @app.route("/api/scan")
@@ -1153,7 +1182,10 @@ def api_schedules_add():
 @app.route("/api/schedules/<sid>", methods=["DELETE"])
 def api_schedules_del(sid):
     global SCHEDULES
+    before = len(SCHEDULES)
     SCHEDULES = [s for s in SCHEDULES if s.get("id") != sid]
+    if len(SCHEDULES) == before:
+        return jsonify(error="not found"), 404
     _save_schedules()
     return jsonify(deleted=True)
 
