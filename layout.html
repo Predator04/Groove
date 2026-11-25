@@ -465,6 +465,14 @@
   .sim-fx{ font-size:11px; padding:4px 10px; border-radius:999px; background:rgba(255,255,255,0.08); border:1px solid var(--stroke); cursor:grab; color:var(--ink); }
   .sim-fx:hover{ background:rgba(255,255,255,0.15); }
   .sim-ghost{ position:fixed; pointer-events:none; width:34px; height:34px; border-radius:50%; z-index:9999; transform:translate(-50%,-50%); box-shadow:0 0 12px rgba(0,0,0,0.5); }
+  .builder{ position:fixed; inset:0; z-index:200; display:none; flex-direction:column; background:rgba(8,10,20,0.98); }
+  .builder-head{ display:flex; gap:10px; align-items:center; padding:14px 18px; border-bottom:1px solid var(--stroke); flex-wrap:wrap; }
+  .builder-head input{ flex:1; min-width:180px; max-width:340px; }
+  .builder-body{ display:flex; flex:1; min-height:0; }
+  .builder .sim-yard{ height:auto; flex:1; margin:12px 0 12px 12px; border-radius:16px; }
+  .builder-side{ width:300px; padding:14px; overflow-y:auto; border-left:1px solid var(--stroke); }
+  .side-label{ font-size:11px; color:var(--ink-faint); margin:12px 0 6px; text-transform:uppercase; letter-spacing:0.5px; }
+  .b-title{ font-size:16px; font-weight:700; }
   .sim-status{ text-align:center; font-size:11px; color:var(--ink-faint); margin-bottom:8px; }
 
   .field{
@@ -754,19 +762,32 @@
 
 <div id="partyModal" class="modal">
   <div class="sheet">
-    <button class="close-x" onclick="stopSim();document.getElementById('partyModal').style.display='none'">✕</button>
+    <button class="close-x" onclick="document.getElementById('partyModal').style.display='none'">✕</button>
     <h3><span>🎛</span> Party modes</h3>
     <div class="modal-sub">Edit which effects and colors each party mode cycles through, or create your own.</div>
-    <div id="partyPreview">
-      <div class="sim-yard" id="simYard"><div id="simLayer"></div></div>
-      <div class="sim-status" id="simStatus">Drag a color onto a bulb to paint it · drag an effect onto the yard to preview it · name it to save your own mode.</div>
-      <div class="sim-palette" id="simPalette"></div>
-      <div class="sim-fxrow" id="simEffects"></div>
-    </div>
     <div id="partyList"></div>
     <div class="field" style="margin-top:12px;">
-      <input id="newThemeName" type="text" placeholder="New party name (e.g. Halloween)">
-      <button onclick="createTheme()">Create</button>
+      <button onclick="openBuilder()">🎨 Create mode</button>
+    </div>
+  </div>
+</div>
+
+<div id="builder">
+  <div class="builder-head">
+    <span class="b-title">🎛 Party Builder</span>
+    <input id="builderName" type="text" placeholder="Name your mode (e.g. Halloween)">
+    <button onclick="saveBuiltMode()">💾 Save</button>
+    <button onclick="previewBuiltMode()">▶ Preview</button>
+    <button class="ghost" onclick="closeBuilder()">Back</button>
+  </div>
+  <div class="builder-body">
+    <div class="sim-yard" id="simYard"><div id="simLayer"></div></div>
+    <div class="builder-side">
+      <div class="side-label">🎨 Colors — drag onto a bulb to paint it</div>
+      <div class="sim-palette" id="simPalette"></div>
+      <div class="side-label">✨ Effects — drag onto the yard to preview</div>
+      <div class="sim-fxrow" id="simEffects"></div>
+      <div class="sim-status" id="simStatus">Arrange the bulbs, paint them, then hit ▶ Preview or 💾 Save.</div>
     </div>
   </div>
 </div>
@@ -1132,7 +1153,6 @@ async function openPartyEditor(){
     (await fetch('/api/effects')).json(),
   ]);
   THEMES = t; ALL_EFFECTS = e;
-  await buildSimYard();
   renderPartyEditor();
 }
 function chip(label, fn){
@@ -1150,7 +1170,7 @@ function renderPartyEditor(){
     const title = document.createElement('b'); title.textContent = name;
     const prev = document.createElement('button'); prev.className = 'small ghost'; prev.textContent = '▶';
     prev.title = 'Simulate this mode on the virtual bulbs';
-    prev.onclick = () => togglePreview(name);
+    prev.onclick = () => previewThemeInBuilder(name);
     const run = document.createElement('button'); run.className = 'small'; run.textContent = 'Run';
     run.onclick = () => startTheme(name);
     head.appendChild(title); head.appendChild(prev); head.appendChild(run);
@@ -1444,7 +1464,7 @@ function renderSim(t){
 }
 function tick(now){
   if(!sim.running) return;
-  if(sim.theme && now - sim.effectStart > sim.effectDur){ pickSimEffect(); sim.effectStart = now; }
+  if(sim.theme && now - sim.effectStart > sim.effectDur){ if(sim.theme === '__built__') pickBuiltEffect(); else pickSimEffect(); sim.effectStart = now; }
   renderSim((now - sim.effectStart)/1000);
   sim.raf = requestAnimationFrame(tick);
 }
@@ -1468,6 +1488,47 @@ function stopSim(){
 function togglePreview(name){
   if(sim.running && sim.theme === name){ stopSim(); }
   else { startSim(name); }
+}
+
+async function openBuilder(){
+  document.getElementById('partyModal').style.display = 'none';
+  document.getElementById('builder').style.display = 'flex';
+  if(!ALL_EFFECTS.length){ try { ALL_EFFECTS = await (await fetch('/api/effects')).json(); } catch(e) {} }
+  await buildSimYard();
+}
+async function previewThemeInBuilder(name){
+  await openBuilder();
+  startSim(name);
+}
+function closeBuilder(){
+  stopSim();
+  document.getElementById('builder').style.display = 'none';
+}
+async function saveBuiltMode(){
+  const name = document.getElementById('builderName').value.trim();
+  if(!name){ alert('Give your mode a name first'); return; }
+  const cols = [...new Set(simBulbs.map(b => b.color ? b.color.join(',') : null).filter(Boolean))].map(c => c.split(',').map(Number));
+  THEMES[name] = {effects: ['chase','wave','rainbow','disco','twinkle'], palettes: cols.length ? [cols] : []};
+  await saveTheme(name);
+  document.getElementById('builderName').value = '';
+  closeBuilder();
+}
+function previewBuiltMode(){
+  if(sim.running && sim.theme === '__built__'){ stopSim(); return; }
+  stopSim();
+  sim.theme = '__built__';
+  sim.running = true;
+  pickBuiltEffect();
+  sim.raf = requestAnimationFrame(tick);
+  document.getElementById('simStatus').textContent = 'Previewing your mode — hit ▶ again to stop.';
+}
+function pickBuiltEffect(){
+  const cols = simBulbs.map(b => b.color).filter(Boolean);
+  sim.colors = cols.length ? cols.map(c => css(c)) : ['rgb(255,255,255)'];
+  const fx = ALL_EFFECTS.length ? ALL_EFFECTS : ['chase','wave','rainbow','disco','twinkle'];
+  sim.effect = fx[Math.floor(Math.random()*fx.length)];
+  sim.effectStart = performance.now();
+  sim.effectDur = 3000;
 }
 
 // ---- scheduler ----
