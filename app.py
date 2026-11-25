@@ -17,7 +17,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.6.0"
+VERSION = "2.7.0"
 BUILD_DATE = "2026-11-15"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -1240,7 +1240,13 @@ def _check_automation():
 def api_automation():
     sr, ss = _get_sun_times(AUTOMATION.get("lat"), AUTOMATION.get("lon"))
     def fmt(m):
-        return f"{m//60:02d}:{m%60:02d}" if m is not None else None
+        if m is None:
+            return None
+        h, mm = m // 60, m % 60
+        hr = h % 12
+        if hr == 0:
+            hr = 12
+        return f"{hr}:{mm:02d} {'PM' if h >= 12 else 'AM'}"
     return jsonify({**AUTOMATION, "sunrise": fmt(sr), "sunset": fmt(ss)})
 
 
