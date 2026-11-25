@@ -41,7 +41,7 @@
 </div>
 <header>
   <h1>💡 Groove Layout</h1>
-  <span class="hint">drag bulbs to arrange · chase runs left→right</span>
+  <span class="hint">drag bulbs to reorder the chain · effects run along it</span>
   <div class="spacer"></div>
   <select id="effectSel" style="background:#1a2233;color:#e8ecf5;border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:7px 10px;font-size:12px;">
     <option value="chase">🏃 Chase</option>
@@ -72,7 +72,10 @@
   <button class="off" onclick="stopChase()">Stop</button>
 </header>
 
-<div id="yard"></div>
+<div id="yard">
+  <svg id="links" viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible;"></svg>
+  <div id="bulbsLayer" style="position:absolute; inset:0;"></div>
+</div>
 
 <div id="panel">
   <input type="color" id="cpicker" oninput="setColor(this.value)">
@@ -103,7 +106,8 @@ async function load(){
   renderPalette();
 }
 function renderBulbs(){
-  yard.innerHTML = '';
+  const layer = document.getElementById('bulbsLayer');
+  layer.innerHTML = '';
   const order = sorted();
   bulbs.forEach((b, i) => {
     const el = document.createElement('div');
@@ -115,11 +119,22 @@ function renderBulbs(){
     setBulbColor(b, b.color);
     el.addEventListener('pointerdown', e => startDrag(e, b, el));
     el.addEventListener('click', e => { if(!el.classList.contains('dragging')) select(b); });
-    yard.appendChild(el);
+    layer.appendChild(el);
     b.el = el;
   });
+  drawLinks();
 }
 function sorted(){ return [...bulbs].sort((a,b)=>a.x-b.x); }
+function drawLinks(){
+  const svg = document.getElementById('links');
+  const order = sorted();
+  let h = '';
+  for(let i=0; i<order.length-1; i++){
+    const a = order[i], b = order[i+1];
+    h += `<line x1="${(a.x*100).toFixed(2)}" y1="${(a.y*100).toFixed(2)}" x2="${(b.x*100).toFixed(2)}" y2="${(b.y*100).toFixed(2)}" stroke="rgba(255,255,255,.16)" stroke-width="0.3" stroke-dasharray="1 1"/>`;
+  }
+  svg.innerHTML = h;
+}
 function setBulbColor(b, rgb){
   b.color = rgb;
   if(b.el){
@@ -157,6 +172,7 @@ function onDrag(e){
   dragState.el.style.left = (x*100)+'%';
   dragState.el.style.top = (y*100)+'%';
   updateOrder();
+  drawLinks();
 }
 function endDrag(e){
   if(!dragState) return;

@@ -545,10 +545,16 @@ def api_layout_get():
     if not NAMES:
         refresh_names()
     bulbs = []
-    for device_id, ip in LAN_MAP.items():
-        pos = LAYOUT.get(device_id, {})
+    items = list(LAN_MAP.items())
+    n = len(items)
+    for i, (device_id, ip) in enumerate(items):
+        pos = LAYOUT.get(device_id) or {}
+        x, y = pos.get("x"), pos.get("y")
+        if x is None or y is None:
+            # default: spread in a horizontal chain so bulbs never pile up
+            x, y = (i + 0.5) / max(n, 1), 0.5
         bulbs.append({"id": device_id, "name": NAMES.get(device_id, device_id),
-                      "ip": ip, "x": pos.get("x", 0.5), "y": pos.get("y", 0.5)})
+                      "ip": ip, "x": x, "y": y})
     return jsonify({"bulbs": bulbs})
 
 
