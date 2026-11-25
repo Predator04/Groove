@@ -40,6 +40,9 @@
   <h1>💡 Groove Layout</h1>
   <span class="hint">drag bulbs to arrange · chase runs left→right</span>
   <div class="spacer"></div>
+  <select id="presetSel" onchange="applyPreset(this.value)" style="background:#1a2233;color:#e8ecf5;border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:7px 10px;font-size:12px;">
+    <option value="">✨ Presets…</option>
+  </select>
   <div class="palette" id="palette"></div>
   <button class="small" onclick="addColor()">+ color</button>
   <div class="speed">Step <input id="speed" type="range" min="150" max="2000" step="50" value="350" oninput="spdLbl.textContent=this.value+'ms'"> <span id="spdLbl">350ms</span></div>
@@ -234,7 +237,33 @@ function startLocalMirror(step){
   }, step);
 }
 
+// ---- presets ----
+let presets = {};
+async function loadPresets(){
+  try{
+    const r = await fetch('/api/presets'); presets = await r.json();
+    const sel = document.getElementById('presetSel');
+    Object.keys(presets).forEach(name => {
+      const o = document.createElement('option');
+      o.value = name; o.textContent = name;
+      sel.appendChild(o);
+    });
+  }catch(e){}
+}
+async function applyPreset(name){
+  if(!name || !presets[name]) { document.getElementById('presetSel').value=''; return; }
+  const p = presets[name];
+  palette = p.colors.map(c => [...c]);
+  renderPalette();
+  document.getElementById('speed').value = p.step_ms;
+  spdLbl.textContent = p.step_ms + 'ms';
+  await stopChase();
+  await toggleChase();
+  document.getElementById('presetSel').value = '';
+}
+
 load();
+loadPresets();
 </script>
 </body>
 </html>

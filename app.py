@@ -327,6 +327,23 @@ def layout_page():
         return "<h1>layout.html missing</h1>"
 
 
+# ---- chase presets ----
+DEFAULT_PRESETS = {
+    "Christmas": {"colors": [[0, 200, 0], [255, 0, 0], [0, 70, 255], [140, 0, 220],
+                             [255, 200, 0], [255, 255, 255], [255, 80, 180]], "step_ms": 350},
+    "Classic Red/Green": {"colors": [[255, 0, 0], [0, 200, 0]], "step_ms": 400},
+    "All White": {"colors": [[255, 255, 255]], "step_ms": 400},
+    "Red White Blue": {"colors": [[255, 0, 0], [255, 255, 255], [0, 70, 255]], "step_ms": 350},
+    "Candy": {"colors": [[255, 80, 180], [0, 200, 0], [255, 255, 255], [255, 0, 0]], "step_ms": 350},
+}
+PRESETS = _load_json("presets.json", DEFAULT_PRESETS)
+
+
+@app.route("/api/presets")
+def api_presets():
+    return jsonify(PRESETS)
+
+
 @app.route("/")
 def index():
     return render_template_string(INDEX_HTML)
