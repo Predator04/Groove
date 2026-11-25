@@ -1018,62 +1018,25 @@ function surprise(){
   stopChase().then(() => toggleEffect());
 }
 
-// ---- party mode (continuous rotation) ----
-let partyTimer = null;
-let partyTheme = null;   // 'random' | 'christmas'
-function stopParty(){
-  if(partyTimer){ clearInterval(partyTimer); partyTimer = null; }
-  ['partyBtn','xmasBtn'].forEach(id => {
-    const el = document.getElementById(id);
-    if(el){ el.classList.remove('active'); }
-  });
+// ---- party mode (server-side; keeps running with the page closed) ----
+let partyTheme = null;
+async function stopParty(){
+  partyTheme = null;
+  ['partyBtn','xmasBtn'].forEach(id => { const el = document.getElementById(id); if(el){ el.classList.remove('active'); } });
   document.getElementById('partyBtn').textContent = '🎉 Party';
   document.getElementById('xmasBtn').textContent = '🎄 Christmas';
-  partyTheme = null;
+  try{ await api('/api/party/stop', {}); }catch(e){}
 }
-async function toggleParty(){
-  if(partyTheme === 'random'){ stopParty(); return; }
-  stopParty(); partyTheme = 'random';
-  document.getElementById('partyBtn').classList.add('active');
-  document.getElementById('partyBtn').textContent = '🎉 Party…';
-  const effs = ['chase','wave','twinkle','meteor','confetti','fireworks','disco','rainbow','strobe','comet','snake','plasma','fireflies','larson','drip','pendulum','marquee'];
-  const run = () => {
-    document.getElementById('effectSel').value = effs[Math.floor(Math.random()*effs.length)];
-    const n = 3 + Math.floor(Math.random()*5);
-    palette = Array.from({length:n}, () => [Math.floor(Math.random()*256), Math.floor(Math.random()*256), Math.floor(Math.random()*256)]);
-    renderPalette();
-    const step = 150 + Math.floor(Math.random()*6)*100;
-    document.getElementById('speed').value = step; spdLbl.textContent = step + 'ms';
-    stopChase().then(() => toggleEffect());
-  };
-  run();
-  partyTimer = setInterval(run, 22000);
+async function startParty(theme){
+  await stopParty();
+  partyTheme = theme;
+  const btn = document.getElementById(theme === 'christmas' ? 'xmasBtn' : 'partyBtn');
+  btn.classList.add('active');
+  btn.textContent = theme === 'christmas' ? '🎄 Christmas…' : '🎉 Party…';
+  await api('/api/party/start', {theme});
 }
-async function toggleChristmas(){
-  if(partyTheme === 'christmas'){ stopParty(); return; }
-  stopParty(); partyTheme = 'christmas';
-  document.getElementById('xmasBtn').classList.add('active');
-  document.getElementById('xmasBtn').textContent = '🎄 Christmas…';
-  const effs = ['candycane','chase','sparkle','twinkle','fireflies','wave','gradient','breathe'];
-  const palettes = [
-    [[0,180,0],[200,0,0],[255,255,255]],
-    [[200,0,0],[0,180,0]],
-    [[200,0,0],[255,255,255]],
-    [[200,0,0],[0,180,0],[255,200,0]],
-    [[255,255,255],[255,230,180]],
-    [[0,180,0],[200,0,0],[255,200,0],[255,255,255]],
-  ];
-  const run = () => {
-    document.getElementById('effectSel').value = effs[Math.floor(Math.random()*effs.length)];
-    palette = palettes[Math.floor(Math.random()*palettes.length)].slice();
-    renderPalette();
-    const step = 250 + Math.floor(Math.random()*5)*100;
-    document.getElementById('speed').value = step; spdLbl.textContent = step + 'ms';
-    stopChase().then(() => toggleEffect());
-  };
-  run();
-  partyTimer = setInterval(run, 18000);
-}
+function toggleParty(){ partyTheme === 'random' ? stopParty() : startParty('random'); }
+function toggleChristmas(){ partyTheme === 'christmas' ? stopParty() : startParty('christmas'); }
 
 // ---- scheduler ----
 function openSched(){

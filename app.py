@@ -771,6 +771,64 @@ def api_effect_stop():
     return jsonify(stopped=True)
 
 
+# ---- party mode (server-side rotation; keeps running with the page closed) ----
+_party_thread = None
+_party_stop = threading.Event()
+
+CHRISTMAS_EFFECTS = ["candycane", "chase", "sparkle", "twinkle", "fireflies", "wave", "gradient", "breathe"]
+CHRISTMAS_PALETTES = [
+    [[0, 180, 0], [200, 0, 0], [255, 255, 255]],
+    [[200, 0, 0], [0, 180, 0]],
+    [[200, 0, 0], [255, 255, 255]],
+    [[200, 0, 0], [0, 180, 0], [255, 200, 0]],
+    [[255, 255, 255], [255, 230, 180]],
+    [[0, 180, 0], [200, 0, 0], [255, 200, 0], [255, 255, 255]],
+]
+PARTY_EFFECTS = ["chase", "wave", "twinkle", "meteor", "confetti", "fireworks", "disco", "rainbow",
+                 "strobe", "comet", "snake", "plasma", "fireflies", "larson", "drip", "pendulum", "marquee"]
+
+
+def _party_loop(theme):
+    while not _party_stop.is_set():
+        ips = _ordered_ips()
+        if not ips:
+            _party_stop.wait(5)
+            continue
+        if theme == "christmas":
+            effect = random.choice(CHRISTMAS_EFFECTS)
+            colors = random.choice(CHRISTMAS_PALETTES)
+            step = random.randint(250, 650)
+        else:
+            effect = random.choice(PARTY_EFFECTS)
+            n = random.randint(3, 7)
+            colors = [[random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)] for _ in range(n)]
+            step = random.randint(150, 550)
+        start_effect(ips, effect, colors, step)
+        _party_stop.wait(18 if theme == "christmas" else 22)
+
+
+@app.route("/api/party/start", methods=["POST"])
+def api_party_start():
+    global _party_thread
+    body = request.get_json(force=True) or {}
+    theme = body.get("theme", "random")
+    if theme not in ("christmas", "random"):
+        return jsonify(error="theme must be christmas or random"), 400
+    _party_stop.clear()
+    if _party_thread and _party_thread.is_alive():
+        _party_thread.join(timeout=1)
+    _party_thread = threading.Thread(target=_party_loop, args=(theme,), daemon=True)
+    _party_thread.start()
+    return jsonify(started=True, theme=theme)
+
+
+@app.route("/api/party/stop", methods=["POST"])
+def api_party_stop():
+    _party_stop.set()
+    _effect_stop.set()
+    return jsonify(stopped=True)
+
+
 @app.route("/api/lan/chase/start", methods=["POST"])
 def api_lan_chase_start():
     """Backward-compat alias for the chase effect."""
