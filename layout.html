@@ -786,7 +786,7 @@ async function scanNew(){
     const known = new Set(Object.keys(devs));
     const r = await fetch('/api/scan'); const d = await r.json();
     const fresh = Object.entries(d.found || {}).filter(([dev]) => !known.has(dev));
-    if(!fresh.length){ list.innerHTML = '<div class="empty"><span class="emoji">🔎</span>No new bulbs found.<br>Make sure it's powered on, then add manually below.</div>'; return; }
+    if(!fresh.length){ list.innerHTML = '<div class="empty"><span class="emoji">🔎</span>No new bulbs found.<br>Make sure it is powered on, then add manually below.</div>'; return; }
     list.innerHTML = '';
     fresh.forEach(([dev, info]) => {
       const row = document.createElement('div');
