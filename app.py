@@ -16,7 +16,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "1.6.0"
+VERSION = "1.7.0"
 BUILD_DATE = "2026-11-15"
 
 
@@ -668,6 +668,13 @@ def setup_page():
             return f.read()
     except Exception:
         return "<h1>setup.html missing</h1>"
+
+
+@app.route("/assets/<path:filename>")
+def serve_asset(filename):
+    from flask import send_from_directory
+    assets_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+    return send_from_directory(assets_dir, filename)
 
 
 # ---- chase presets ----

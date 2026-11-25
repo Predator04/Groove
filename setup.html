@@ -2,78 +2,303 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Groove — Setup</title>
 <style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif; background:radial-gradient(1200px 800px at 20% -10%, #1a2440 0%, #0b0f1a 55%, #05070d 100%); color:#e8ecf5; min-height:100vh; display:flex; justify-content:center; padding:40px 16px; }
-  .card { width:100%; max-width:560px; background:rgba(255,255,255,.045); border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:28px; backdrop-filter:blur(14px); }
-  h1 { margin:0 0 4px; font-size:24px; }
-  .sub { color:#8b95b0; font-size:13px; margin-bottom:22px; }
-  .step { margin-bottom:22px; }
-  .step h2 { font-size:15px; margin:0 0 8px; }
-  label { font-size:12px; color:#8b95b0; display:block; margin-bottom:6px; }
-  input[type=text] { width:100%; padding:10px 12px; background:#0c101c; border:1px solid rgba(255,255,255,.14); border-radius:10px; color:#e8ecf5; font-size:13px; }
-  button { background:linear-gradient(135deg,#3b5bdb,#7048e8); color:#fff; border:0; border-radius:10px; padding:10px 16px; font-size:13px; cursor:pointer; }
-  button.off { background:linear-gradient(135deg,#5c6573,#39404d); }
-  .found { margin-top:10px; display:flex; flex-direction:column; gap:8px; }
-  .bulb { display:flex; align-items:center; gap:10px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:8px 12px; font-size:13px; }
-  .dot { width:12px; height:12px; border-radius:50%; background:#ffd166; }
-  .ip { color:#8b95b0; font-family:monospace; font-size:12px; margin-left:auto; }
-  .ok { color:#6ee7a0; font-size:13px; }
-  .warn { color:#ffb86b; font-size:12px; margin-top:8px; line-height:1.5; }
-  a { color:#7aa2ff; }
-  .done { margin-top:18px; }
-  code { background:rgba(255,255,255,.08); padding:1px 5px; border-radius:4px; }
+  :root{
+    color-scheme: dark;
+    --ink:#eef1fb;
+    --ink-dim:#9aa4bf;
+    --ink-faint:#6a7493;
+    --stroke: rgba(255,255,255,0.09);
+    --stroke-hi: rgba(255,255,255,0.18);
+    --accent-a:#6b8cff;
+    --accent-b:#b86bff;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ min-height:100%; }
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    color:var(--ink);
+    background:#04060d;
+    min-height:100vh;
+    display:flex; justify-content:center; align-items:flex-start;
+    padding:40px 18px;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing:-0.01em;
+    position:relative;
+    overflow-x:hidden;
+  }
+  body::before{
+    content:"";
+    position:fixed; inset:-10%;
+    background: url('assets/bg.svg') center/cover no-repeat;
+    z-index:-2;
+    animation: drift 40s ease-in-out infinite alternate;
+  }
+  body::after{
+    content:"";
+    position:fixed; inset:0;
+    background:
+      radial-gradient(1200px 700px at 15% 10%, rgba(107,140,255,0.18), transparent 55%),
+      radial-gradient(900px 600px at 85% 20%, rgba(184,107,255,0.14), transparent 60%),
+      radial-gradient(1000px 700px at 50% 100%, rgba(42,211,185,0.10), transparent 60%);
+    z-index:-1;
+    pointer-events:none;
+  }
+  @keyframes drift {
+    0%   { transform: translate3d(0,0,0) scale(1.00); }
+    100% { transform: translate3d(-2%, 2%, 0) scale(1.06); }
+  }
+
+  .card{
+    width:100%;
+    max-width:560px;
+    background: linear-gradient(180deg, rgba(26,30,52,0.65), rgba(14,18,34,0.78));
+    border:1px solid var(--stroke-hi);
+    border-radius:22px;
+    padding:32px;
+    backdrop-filter: blur(28px) saturate(140%);
+    -webkit-backdrop-filter: blur(28px) saturate(140%);
+    box-shadow:
+      0 40px 100px -20px rgba(0,0,0,0.65),
+      0 0 0 1px rgba(255,255,255,0.04),
+      inset 0 1px 0 rgba(255,255,255,0.08);
+    animation: card-in .5s cubic-bezier(.2,.9,.3,1.1);
+  }
+  @keyframes card-in {
+    from { opacity:0; transform: translateY(14px) scale(.98); }
+    to   { opacity:1; transform: none; }
+  }
+
+  .brand{
+    display:flex; align-items:center; gap:14px;
+    margin-bottom:6px;
+  }
+  .brand-mark{
+    width:40px; height:40px; border-radius:11px;
+    background: conic-gradient(from 210deg, #6b8cff, #b86bff, #2ad3b9, #6b8cff);
+    position:relative;
+    box-shadow: 0 0 24px rgba(107,140,255,0.55), inset 0 0 0 1px rgba(255,255,255,0.18);
+  }
+  .brand-mark::after{
+    content:""; position:absolute; inset:6px;
+    border-radius:7px;
+    background:
+      radial-gradient(circle at 35% 30%, rgba(255,255,255,0.9), rgba(255,255,255,0) 55%),
+      rgba(10,14,28,0.85);
+  }
+  h1{ margin:0; font-size:24px; font-weight:600; letter-spacing:-0.01em; }
+  .sub{
+    color:var(--ink-dim);
+    font-size:13.5px;
+    margin: 4px 0 28px;
+    line-height:1.5;
+  }
+
+  .step{
+    margin-bottom:22px;
+    padding:16px 18px;
+    background: rgba(255,255,255,0.02);
+    border:1px solid var(--stroke);
+    border-radius:14px;
+    transition: border-color .2s, background .2s;
+  }
+  .step:hover{ border-color: var(--stroke-hi); }
+  .step h2{
+    font-size:14px; font-weight:600;
+    margin:0 0 10px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .step h2 .num{
+    width:24px; height:24px;
+    border-radius:50%;
+    background: linear-gradient(135deg, var(--accent-a), var(--accent-b));
+    color:#fff;
+    font-size:11px; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 4px 12px -4px rgba(107,140,255,0.6);
+  }
+  label{
+    font-size:12.5px; color:var(--ink-dim);
+    display:block; margin-bottom:10px;
+    line-height:1.5;
+  }
+  label b{ color:var(--ink); font-weight:600; }
+  input[type=text]{
+    width:100%;
+    padding:12px 14px;
+    background: rgba(8,10,20,0.6);
+    border:1px solid var(--stroke-hi);
+    border-radius:11px;
+    color:var(--ink);
+    font-size:13.5px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    transition: border-color .15s, box-shadow .15s;
+    outline:none;
+  }
+  input[type=text]:focus{
+    border-color: rgba(107,140,255,0.55);
+    box-shadow: 0 0 0 3px rgba(107,140,255,0.15);
+  }
+  input[type=text]::placeholder{ color:var(--ink-faint); }
+
+  button{
+    background: linear-gradient(135deg, var(--accent-a), var(--accent-b));
+    color:#fff; border:0; border-radius:11px;
+    padding:11px 18px;
+    font-size:13.5px; font-weight:600;
+    cursor:pointer;
+    transition: transform .08s, box-shadow .2s, filter .15s, opacity .2s;
+    box-shadow: 0 8px 22px -6px rgba(107,140,255,0.55), inset 0 1px 0 rgba(255,255,255,0.18);
+    position:relative; overflow:hidden;
+  }
+  button::before{
+    content:""; position:absolute; inset:0;
+    background: linear-gradient(180deg, rgba(255,255,255,0.14), transparent 55%);
+    pointer-events:none;
+  }
+  button:hover{ transform:translateY(-1px); filter:brightness(1.08); }
+  button:active{ transform:translateY(0); filter:brightness(0.95); }
+  button:disabled{
+    opacity:0.4; cursor:not-allowed;
+    background: linear-gradient(135deg, #4a5270, #333a52);
+    box-shadow:none;
+    transform:none;
+    filter:none;
+  }
+  button.off{
+    background: linear-gradient(135deg, rgba(60,70,100,0.55), rgba(40,48,72,0.55));
+    box-shadow: inset 0 0 0 1px var(--stroke-hi);
+  }
+
+  .found{ margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+  .bulb{
+    display:flex; align-items:center; gap:12px;
+    background: rgba(255,255,255,0.03);
+    border:1px solid var(--stroke);
+    border-radius:12px;
+    padding:11px 14px;
+    font-size:13.5px;
+    animation: row-in .25s ease;
+  }
+  @keyframes row-in {
+    from { opacity:0; transform: translateX(-8px); }
+    to   { opacity:1; transform: none; }
+  }
+  .dot{
+    width:14px; height:14px; border-radius:50%;
+    background:
+      radial-gradient(circle at 30% 30%, #fff5c2, #ffcf6b 55%, #c98a0e);
+    box-shadow: 0 0 14px #ffcf6b, inset 0 -2px 4px rgba(0,0,0,0.3);
+    animation: glow 2.4s ease-in-out infinite;
+  }
+  @keyframes glow {
+    0%,100% { box-shadow: 0 0 10px #ffcf6b, inset 0 -2px 4px rgba(0,0,0,0.3); }
+    50%     { box-shadow: 0 0 22px #ffe18a, inset 0 -2px 4px rgba(0,0,0,0.3); }
+  }
+  .ip{
+    color:var(--ink-faint);
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size:12px;
+    margin-left:auto;
+  }
+
+  .ok{ color:#6ee7a0; font-size:13px; }
+  .warn{
+    color:#ffcc88;
+    font-size:12.5px;
+    margin-top:14px;
+    line-height:1.55;
+    padding:12px 14px;
+    background: rgba(255,180,100,0.06);
+    border:1px solid rgba(255,180,100,0.18);
+    border-radius:11px;
+  }
+  a{ color:#9ab4ff; }
+  code{
+    background: rgba(255,255,255,0.08);
+    padding:2px 6px;
+    border-radius:5px;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+    font-size:12px;
+  }
+  .done{ margin-top:22px; display:flex; flex-direction:column; gap:10px; }
+  #status .ok{
+    display:inline-block;
+    padding:8px 12px;
+    background: rgba(110,231,160,0.08);
+    border:1px solid rgba(110,231,160,0.25);
+    border-radius:9px;
+  }
+  #status .warn{ margin-top:0; }
+
+  @media (max-width: 520px){
+    body{ padding:24px 12px; }
+    .card{ padding:22px; border-radius:18px; }
+    h1{ font-size:20px; }
+    .step{ padding:14px; }
+    button{ min-height:46px; padding:12px 18px; }
+    input[type=text]{ padding:14px; }
+  }
 </style>
 </head>
 <body>
 <div class="card">
-  <h1>💡 Groove Setup</h1>
-  <div class="sub">Get your Govee bulbs running in under a minute.</div>
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true"></div>
+    <h1>Groove Setup</h1>
+  </div>
+  <div class="sub">Get your Govee bulbs running in under a minute. All control stays on your LAN — no cloud dependency, no rate limits.</div>
 
   <div class="step">
-    <h2>1 · Govee API key</h2>
-    <label>Get one in the Govee Home app → Profile → About → Apply for API Key (emailed to you), then paste it below:</label>
-    <input type="text" id="apikey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+    <h2><span class="num">1</span> Govee API key</h2>
+    <label>Get one in the Govee Home app → <b>Profile</b> → <b>About</b> → <b>Apply for API Key</b> (emailed within minutes). Paste it below:</label>
+    <input type="text" id="apikey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off" spellcheck="false">
   </div>
 
   <div class="step">
-    <h2>2 · Enable LAN control on each bulb</h2>
-    <label>In the Govee Home app, open each bulb → ⚙️ settings → <b>LAN Control</b> → on. (This is what lets Groove control them with zero rate limit.)</label>
+    <h2><span class="num">2</span> Enable LAN control</h2>
+    <label>For each bulb, in the Govee Home app → open the bulb → <b>⚙️ settings</b> → <b>LAN Control</b> → on. This is what lets Groove drive them at full speed with zero rate limit.</label>
   </div>
 
   <div class="step">
-    <h2>3 · Discover your bulbs</h2>
+    <h2><span class="num">3</span> Discover your bulbs</h2>
     <button id="scanBtn" onclick="scan()">🔍 Scan for bulbs</button>
     <div class="found" id="found"></div>
   </div>
 
   <div class="done">
-    <button id="saveBtn" onclick="save()" disabled>Save & open dashboard</button>
+    <button id="saveBtn" onclick="save()" disabled>Save & open dashboard →</button>
     <div id="status"></div>
   </div>
 
-  <div class="warn">💡 Tip: the machine running Groove must be on the <b>same Wi-Fi</b> as your bulbs, and your router must allow multicast/broadcast (most home routers do).</div>
+  <div class="warn">💡 Tip: the machine running Groove must be on the <b>same Wi-Fi</b> as your bulbs, and your router must allow multicast/broadcast (most home routers do by default).</div>
 </div>
 
 <script>
 let found = {};
 async function scan(){
-  document.getElementById('found').innerHTML = '<span class="ok">Scanning…</span>';
-  const r = await fetch('/api/scan'); const d = await r.json();
-  found = d.found || {};
-  const el = document.getElementById('found');
-  if(Object.keys(found).length === 0){
-    el.innerHTML = '<span class="warn">No bulbs found. Make sure LAN Control is on for each bulb and this machine is on the same Wi-Fi, then retry.</span>';
-    document.getElementById('saveBtn').disabled = true;
-    return;
+  document.getElementById('found').innerHTML = '<span class="ok">Scanning your network…</span>';
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true; btn.textContent = 'Scanning…';
+  try{
+    const r = await fetch('/api/scan'); const d = await r.json();
+    found = d.found || {};
+    const el = document.getElementById('found');
+    if(Object.keys(found).length === 0){
+      el.innerHTML = '<div class="warn">No bulbs found. Make sure LAN Control is on for each bulb and this machine is on the same Wi-Fi, then retry.</div>';
+      document.getElementById('saveBtn').disabled = true;
+    } else {
+      el.innerHTML = Object.values(found).map(b =>
+        `<div class="bulb"><span class="dot"></span><span>${b.name || b.sku}</span><span class="ip">${b.ip}</span></div>`
+      ).join('');
+      document.getElementById('saveBtn').disabled = false;
+    }
+  }finally{
+    btn.disabled = false; btn.textContent = '🔍 Scan again';
   }
-  el.innerHTML = Object.values(found).map(b =>
-    `<div class="bulb"><span class="dot"></span>${b.name || b.sku}<span class="ip">${b.ip}</span></div>`
-  ).join('');
-  document.getElementById('saveBtn').disabled = false;
 }
 async function save(){
   const key = document.getElementById('apikey').value.trim();

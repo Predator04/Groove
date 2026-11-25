@@ -2,49 +2,557 @@
 <html>
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Groove — Light Layout</title>
 <style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family:-apple-system,Segoe UI,Roboto,sans-serif; background:#07090f; color:#e8ecf5; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
-  header { display:flex; align-items:center; gap:14px; padding:10px 16px; background:rgba(255,255,255,.03); border-bottom:1px solid rgba(255,255,255,.08); flex-wrap:wrap; }
-  h1 { margin:0; font-size:18px; font-weight:700; letter-spacing:-.3px; }
-  .spacer { flex:1; }
-  button { background:linear-gradient(135deg,#3b5bdb,#7048e8); color:#fff; border:0; border-radius:9px; padding:8px 14px; font-size:13px; cursor:pointer; }
-  button.off { background:linear-gradient(135deg,#5c6573,#39404d); }
-  button.active { background:linear-gradient(135deg,#e8590c,#f76707); }
-  button.small { padding:5px 10px; font-size:12px; }
-  .speed { display:flex; align-items:center; gap:6px; font-size:12px; color:#8b95b0; }
-  .palette { display:flex; gap:6px; align-items:center; }
-  .sw { width:24px; height:24px; border-radius:50%; border:2px solid rgba(255,255,255,.3); cursor:pointer; }
-  .sw.del { border-style:dashed; opacity:.6; }
-  .hint { font-size:11px; color:#8b95b0; }
+  :root{
+    color-scheme: dark;
+    --ink:#eef1fb;
+    --ink-dim:#9aa4bf;
+    --ink-faint:#6a7493;
+    --glass: rgba(18,22,40,0.55);
+    --glass-2: rgba(28,32,55,0.45);
+    --glass-strong: rgba(14,18,34,0.78);
+    --stroke: rgba(255,255,255,0.09);
+    --stroke-hi: rgba(255,255,255,0.18);
+    --accent-a:#6b8cff;
+    --accent-b:#b86bff;
+    --accent-c:#2ad3b9;
+    --danger:#ff6f8a;
+    --radius: 14px;
+    --radius-sm: 10px;
+    --shadow-soft: 0 10px 40px -10px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.35);
+    --shadow-glow: 0 0 0 1px rgba(255,255,255,0.05), 0 20px 60px -20px rgba(80,120,255,0.35);
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    color:var(--ink);
+    background:#04060d;
+    min-height:100vh;
+    display:flex; flex-direction:column;
+    overflow:hidden;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing:-0.01em;
+  }
+  /* ambient aurora background */
+  body::before{
+    content:"";
+    position:fixed; inset:-10%;
+    background: url('assets/bg.svg') center/cover no-repeat;
+    z-index:-2;
+    animation: drift 40s ease-in-out infinite alternate;
+    will-change: transform, filter;
+  }
+  body::after{
+    content:"";
+    position:fixed; inset:0;
+    background:
+      radial-gradient(1200px 700px at 15% 10%, rgba(107,140,255,0.18), transparent 55%),
+      radial-gradient(900px 600px at 85% 20%, rgba(184,107,255,0.14), transparent 60%),
+      radial-gradient(1000px 700px at 50% 100%, rgba(42,211,185,0.10), transparent 60%);
+    z-index:-1;
+    pointer-events:none;
+    animation: pulse 14s ease-in-out infinite alternate;
+  }
+  @keyframes drift {
+    0%   { transform: translate3d(0,0,0) scale(1.00); filter:hue-rotate(0deg); }
+    100% { transform: translate3d(-2%, 2%, 0) scale(1.06); filter:hue-rotate(18deg); }
+  }
+  @keyframes pulse {
+    0%   { opacity:0.85; }
+    100% { opacity:1; }
+  }
 
-  #yard { flex:1; position:relative; margin:10px; border:1px dashed rgba(255,255,255,.12); border-radius:16px; background:radial-gradient(1200px 800px at 30% 20%, #101828 0%, #0a0e18 55%, #05070d 100%); overflow:hidden; }
-  .bulb { position:absolute; transform:translate(-50%,-50%); width:56px; height:56px; border-radius:50%; cursor:grab; display:flex; align-items:center; justify-content:center; transition:box-shadow .15s, background .12s; touch-action:none; user-select:none; }
-  .bulb .core { width:56px; height:56px; border-radius:50%; background:rgba(20,24,32,.95); border:2px solid rgba(255,255,255,.14); display:flex; flex-direction:column; align-items:center; justify-content:center; }
-  .bulb.on .core { background:#fff; }
-  .bulb .lbl { font-size:9px; color:#cfd6e4; max-width:52px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .bulb .ord { position:absolute; top:-9px; right:-9px; background:#2a3248; border:1px solid rgba(255,255,255,.2); border-radius:8px; font-size:10px; width:18px; height:18px; display:flex; align-items:center; justify-content:center; color:#cfd6e4; }
-  .bulb.dragging { cursor:grabbing; z-index:50; }
-  .bulb .glow { position:absolute; inset:-12px; border-radius:50%; filter:blur(14px); opacity:0; transition:opacity .15s; z-index:-1; }
-  .bulb.on .glow { opacity:.9; }
+  /* header */
+  header{
+    position:relative;
+    display:flex; align-items:center; gap:10px;
+    padding:12px 18px;
+    background:var(--glass);
+    border-bottom:1px solid var(--stroke);
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    flex-wrap:wrap;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 8px 30px -14px rgba(0,0,0,0.5);
+    z-index:5;
+  }
+  .brand{
+    display:flex; align-items:center; gap:10px;
+    padding-right:8px;
+    margin-right:4px;
+    border-right:1px solid var(--stroke);
+  }
+  .brand-mark{
+    width:30px; height:30px; border-radius:9px;
+    background: conic-gradient(from 210deg, #6b8cff, #b86bff, #2ad3b9, #6b8cff);
+    position:relative;
+    box-shadow: 0 0 20px rgba(107,140,255,0.6), inset 0 0 0 1px rgba(255,255,255,0.18);
+  }
+  .brand-mark::after{
+    content:""; position:absolute; inset:5px;
+    border-radius:6px;
+    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.9), rgba(255,255,255,0) 55%), rgba(10,14,28,0.85);
+  }
+  h1{
+    margin:0; font-size:15px; font-weight:600; letter-spacing:-0.01em;
+    display:flex; align-items:baseline; gap:6px;
+  }
+  h1 small{ font-size:11px; font-weight:500; color:var(--ink-dim); letter-spacing:0.08em; text-transform:uppercase; }
+  .spacer{ flex:1; }
+  .hint{
+    font-size:11px; color:var(--ink-faint);
+    padding:5px 10px;
+    background:rgba(255,255,255,0.03);
+    border:1px solid var(--stroke);
+    border-radius:999px;
+  }
 
-  #panel { position:absolute; bottom:16px; left:50%; transform:translateX(-50%); display:none; gap:10px; padding:12px 14px; background:rgba(16,20,30,.92); border:1px solid rgba(255,255,255,.12); border-radius:14px; backdrop-filter:blur(10px); align-items:center; }
-  #panel input[type=color] { width:40px; height:40px; border:0; border-radius:8px; background:none; cursor:pointer; }
-  #panel input[type=range] { width:120px; }
+  /* form controls */
+  select, .select, button, input[type=time], input[type=text], input[type=number]{
+    font:inherit;
+    color:var(--ink);
+    border-radius:var(--radius-sm);
+    outline:none;
+  }
+  select{
+    appearance:none; -webkit-appearance:none;
+    background:
+      linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)) padding-box,
+      linear-gradient(135deg, rgba(255,255,255,0.18), rgba(255,255,255,0.06)) border-box;
+    border:1px solid transparent;
+    padding:8px 32px 8px 12px;
+    font-size:12.5px;
+    cursor:pointer;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--ink-dim) 50%),
+      linear-gradient(135deg, var(--ink-dim) 50%, transparent 50%),
+      linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)),
+      linear-gradient(135deg, rgba(255,255,255,0.18), rgba(255,255,255,0.06));
+    background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%, 0 0, 0 0;
+    background-size: 5px 5px, 5px 5px, 100% 100%, 100% 100%;
+    background-origin: padding-box, padding-box, padding-box, border-box;
+    background-clip: padding-box, padding-box, padding-box, border-box;
+    background-repeat:no-repeat;
+    transition: border-color .2s, box-shadow .2s, transform .1s;
+  }
+  select:hover{ box-shadow: 0 0 0 1px rgba(107,140,255,0.4); }
+  select option{ background:#0c1020; color:var(--ink); }
+
+  button{
+    background: linear-gradient(135deg, var(--accent-a), var(--accent-b));
+    color:#fff; border:0;
+    padding:9px 14px; font-size:12.5px; font-weight:600;
+    cursor:pointer;
+    transition: transform .08s ease, box-shadow .2s, filter .15s, background .2s;
+    box-shadow: 0 6px 18px -6px rgba(107,140,255,0.55), inset 0 1px 0 rgba(255,255,255,0.18);
+    position:relative;
+    overflow:hidden;
+  }
+  button::before{
+    content:""; position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(255,255,255,0.14), transparent 55%);
+    pointer-events:none;
+  }
+  button:hover{ transform:translateY(-1px); filter:brightness(1.08); box-shadow: 0 10px 24px -8px rgba(107,140,255,0.7), inset 0 1px 0 rgba(255,255,255,0.22); }
+  button:active{ transform:translateY(0); filter:brightness(0.95); }
+  button.off{
+    background: linear-gradient(135deg, rgba(60,70,100,0.55), rgba(40,48,72,0.55));
+    box-shadow: inset 0 0 0 1px var(--stroke-hi), 0 4px 14px -6px rgba(0,0,0,0.5);
+  }
+  button.off:hover{ background: linear-gradient(135deg, rgba(80,90,130,0.65), rgba(55,65,95,0.65)); filter:none; }
+  button.active{
+    background: linear-gradient(135deg, #ff7a3c, #ff3d7f);
+    box-shadow: 0 8px 22px -6px rgba(255,80,120,0.6), inset 0 1px 0 rgba(255,255,255,0.22);
+  }
+  button.small{ padding:6px 11px; font-size:11.5px; }
+  button.ghost{
+    background:transparent;
+    color:var(--ink-dim);
+    box-shadow: inset 0 0 0 1px var(--stroke);
+  }
+  button.ghost:hover{ color:var(--ink); background:rgba(255,255,255,0.04); }
+
+  /* speed slider */
+  .speed{
+    display:flex; align-items:center; gap:10px;
+    font-size:11.5px; color:var(--ink-dim);
+    padding:6px 12px;
+    background:rgba(255,255,255,0.03);
+    border:1px solid var(--stroke);
+    border-radius:999px;
+  }
+  input[type=range]{
+    -webkit-appearance:none; appearance:none;
+    width:120px; height:4px;
+    background:linear-gradient(90deg, var(--accent-a), var(--accent-b));
+    border-radius:999px;
+    cursor:pointer;
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    width:16px; height:16px; border-radius:50%;
+    background:#fff;
+    box-shadow:0 0 0 2px rgba(107,140,255,0.6), 0 4px 12px rgba(0,0,0,0.4);
+    cursor:grab;
+    transition: transform .1s;
+  }
+  input[type=range]::-webkit-slider-thumb:active{ transform:scale(1.15); }
+  input[type=range]::-moz-range-thumb{
+    width:16px; height:16px; border-radius:50%; background:#fff; border:0;
+    box-shadow:0 0 0 2px rgba(107,140,255,0.6);
+  }
+
+  /* palette */
+  .palette{
+    display:flex; gap:6px; align-items:center;
+    padding:5px 8px;
+    background:rgba(255,255,255,0.03);
+    border:1px solid var(--stroke);
+    border-radius:999px;
+  }
+  .sw{
+    width:22px; height:22px; border-radius:50%;
+    border:2px solid rgba(255,255,255,0.35);
+    cursor:pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.08);
+    transition: transform .15s, border-color .15s;
+  }
+  .sw:hover{ transform:scale(1.15); border-color:#fff; }
+  .sw.del{ border-style:dashed; opacity:.6; }
+
+  /* yard */
+  #yard{
+    flex:1;
+    position:relative;
+    margin:14px;
+    border-radius:20px;
+    background:
+      radial-gradient(1200px 800px at 30% 20%, rgba(107,140,255,0.08) 0%, transparent 55%),
+      radial-gradient(900px 700px at 80% 80%, rgba(184,107,255,0.08) 0%, transparent 55%),
+      linear-gradient(180deg, rgba(10,14,28,0.55), rgba(5,7,16,0.55));
+    border:1px solid var(--stroke);
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,0.04),
+      inset 0 0 80px rgba(0,0,0,0.5),
+      0 30px 80px -30px rgba(0,0,0,0.7);
+    backdrop-filter: blur(10px);
+    overflow:hidden;
+  }
+  #yard::before{
+    content:"";
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, #000 40%, transparent 85%);
+    -webkit-mask-image: radial-gradient(ellipse 80% 70% at 50% 50%, #000 40%, transparent 85%);
+    pointer-events:none;
+  }
+
+  /* bulbs */
+  .bulb{
+    position:absolute;
+    transform: translate(-50%, -50%);
+    width:64px; height:64px;
+    border-radius:50%;
+    cursor:grab;
+    display:flex; align-items:center; justify-content:center;
+    touch-action:none; user-select:none;
+    transition: transform .18s cubic-bezier(.3,.9,.4,1.1);
+  }
+  .bulb:hover{ transform: translate(-50%, -50%) scale(1.06); }
+  .bulb .core{
+    position:relative;
+    width:60px; height:60px;
+    border-radius:50%;
+    background:
+      radial-gradient(circle at 32% 28%, rgba(255,255,255,0.35), transparent 42%),
+      radial-gradient(circle at 50% 50%, rgba(28,32,48,0.95), rgba(14,18,30,0.98));
+    border:1px solid rgba(255,255,255,0.18);
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.05),
+      inset 0 -8px 20px rgba(0,0,0,0.5),
+      0 10px 24px rgba(0,0,0,0.5);
+    overflow:hidden;
+    transition: background .2s, box-shadow .25s;
+  }
+  .bulb .core::before{
+    content:"";
+    position:absolute; inset:0;
+    background: radial-gradient(circle at 40% 25%, rgba(255,255,255,0.55), transparent 35%);
+    opacity:0.6;
+    pointer-events:none;
+  }
+  .bulb.on .core{
+    background:
+      radial-gradient(circle at 30% 25%, rgba(255,255,255,0.75), transparent 45%),
+      radial-gradient(circle at 50% 55%, currentColor, currentColor);
+    border-color: rgba(255,255,255,0.45);
+    box-shadow:
+      inset 0 0 0 1px rgba(255,255,255,0.2),
+      inset 0 -6px 18px rgba(0,0,0,0.25),
+      0 0 30px currentColor,
+      0 10px 24px rgba(0,0,0,0.4);
+    animation: breathe 3.2s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%,100% { filter: brightness(1) saturate(1); }
+    50%     { filter: brightness(1.14) saturate(1.1); }
+  }
+  .bulb .lbl{
+    font-size:9px; font-weight:600;
+    color: rgba(255,255,255,0.72);
+    letter-spacing:0.02em;
+    max-width:48px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    position:relative; z-index:1;
+  }
+  .bulb.on .lbl{ color: rgba(0,0,0,0.65); text-shadow: 0 1px 1px rgba(255,255,255,0.3); }
+  .bulb .ord{
+    position:absolute;
+    top:-6px; right:-6px;
+    background: linear-gradient(135deg, #1a2040, #0e1328);
+    border:1px solid rgba(255,255,255,0.22);
+    border-radius:999px;
+    font-size:10px; font-weight:700;
+    min-width:20px; height:20px; padding:0 5px;
+    display:flex; align-items:center; justify-content:center;
+    color:#dfe4f4;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.12);
+    z-index:2;
+  }
+  .bulb.dragging{ cursor:grabbing; z-index:50; transform: translate(-50%, -50%) scale(1.1); }
+  .bulb .glow{
+    position:absolute; inset:-18px;
+    border-radius:50%;
+    filter:blur(22px);
+    opacity:0;
+    transition: opacity .2s;
+    z-index:-1;
+  }
+  .bulb.on .glow{ opacity:0.85; animation: glow-pulse 3.2s ease-in-out infinite; }
+  @keyframes glow-pulse {
+    0%,100% { opacity:0.6; transform: scale(1); }
+    50%     { opacity:0.95; transform: scale(1.15); }
+  }
+
+  /* svg chain */
+  #links line{
+    stroke: url(#chainGrad);
+    stroke-width: 0.35;
+    stroke-linecap: round;
+    stroke-dasharray: 1.2 1.6;
+    filter: drop-shadow(0 0 1.5px rgba(107,140,255,0.6));
+    animation: dash 8s linear infinite;
+  }
+  @keyframes dash { to { stroke-dashoffset: -40; } }
+
+  /* control panel */
+  #panel{
+    position:absolute;
+    bottom:20px; left:50%;
+    transform: translateX(-50%) translateY(10px);
+    display:none;
+    gap:10px; padding:12px 14px;
+    background: var(--glass-strong);
+    border:1px solid var(--stroke-hi);
+    border-radius:16px;
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    align-items:center;
+    box-shadow: var(--shadow-glow), var(--shadow-soft);
+    animation: panel-in .25s cubic-bezier(.2,.9,.3,1.1) forwards;
+    z-index:60;
+  }
+  @keyframes panel-in {
+    to { transform: translateX(-50%) translateY(0); opacity:1; }
+  }
+  #panel input[type=color]{
+    width:42px; height:42px;
+    border:0; border-radius:10px;
+    background:none; cursor:pointer;
+    box-shadow: inset 0 0 0 1px var(--stroke-hi);
+    padding:2px;
+  }
+  #panel input[type=color]::-webkit-color-swatch-wrapper{ padding:0; }
+  #panel input[type=color]::-webkit-color-swatch{ border:0; border-radius:8px; }
+  #panel input[type=range]{ width:140px; }
+  #pname{ font-size:12px; color:var(--ink-dim); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* modals */
+  .modal{
+    display:none;
+    position:fixed; inset:0;
+    background: rgba(2,4,10,0.55);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index:200;
+    align-items:center; justify-content:center;
+    padding:20px;
+    animation: modal-bg-in .2s ease;
+  }
+  @keyframes modal-bg-in { from { opacity:0; } to { opacity:1; } }
+  .modal .sheet{
+    background: linear-gradient(180deg, rgba(26,30,52,0.82), rgba(14,18,34,0.9));
+    border:1px solid var(--stroke-hi);
+    border-radius:20px;
+    padding:24px;
+    width:min(500px, 100%);
+    max-height: calc(100vh - 40px);
+    overflow:auto;
+    box-shadow: 0 40px 100px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04);
+    backdrop-filter: blur(28px) saturate(140%);
+    -webkit-backdrop-filter: blur(28px) saturate(140%);
+    animation: sheet-in .28s cubic-bezier(.2,.9,.3,1.1);
+    position:relative;
+  }
+  @keyframes sheet-in {
+    from { opacity:0; transform: scale(.96) translateY(10px); }
+    to   { opacity:1; transform: scale(1) translateY(0); }
+  }
+  .modal h3{
+    margin:0 0 4px;
+    font-size:17px; font-weight:600;
+    display:flex; align-items:center; gap:8px;
+  }
+  .modal .modal-sub{
+    font-size:12px; color:var(--ink-faint);
+    margin-bottom:16px; line-height:1.5;
+  }
+  .modal .close-x{
+    position:absolute; top:14px; right:14px;
+    width:30px; height:30px; padding:0;
+    border-radius:50%;
+    background: rgba(255,255,255,0.05);
+    box-shadow: inset 0 0 0 1px var(--stroke);
+    color:var(--ink-dim);
+    font-size:15px; font-weight:400;
+  }
+  .modal .close-x:hover{ background: rgba(255,255,255,0.08); color:var(--ink); transform:none; }
+
+  .field{
+    display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;
+  }
+  .field input[type=time],
+  .field input[type=text],
+  .field input[type=number]{
+    flex:1; min-width:120px;
+    padding:10px 12px;
+    background: rgba(8,10,20,0.6);
+    border:1px solid var(--stroke-hi);
+    border-radius:10px;
+    color:var(--ink);
+    font-size:13px;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .field input:focus{
+    border-color: rgba(107,140,255,0.55);
+    box-shadow: 0 0 0 3px rgba(107,140,255,0.15);
+  }
+  .field input::placeholder{ color:var(--ink-faint); }
+
+  .dusk-card{
+    margin-bottom:14px;
+    padding:12px 14px;
+    background: linear-gradient(135deg, rgba(107,140,255,0.08), rgba(184,107,255,0.06));
+    border:1px solid var(--stroke);
+    border-radius:12px;
+  }
+  .dusk-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .dusk-row .label{ font-size:12.5px; font-weight:500; }
+  .dusk-row .label .emoji{ font-size:14px; margin-right:4px; }
+  .dusk-row input{ width:100px; padding:7px 10px; font-size:12px; background:rgba(8,10,20,0.7); border:1px solid var(--stroke-hi); border-radius:8px; color:var(--ink); }
+  #duskInfo{ font-size:11px; color:var(--ink-faint); margin-top:6px; }
+
+  .list{
+    display:flex; flex-direction:column; gap:6px;
+    max-height:40vh; overflow:auto;
+    padding-right:2px;
+  }
+  .list::-webkit-scrollbar{ width:6px; }
+  .list::-webkit-scrollbar-thumb{ background:rgba(255,255,255,0.1); border-radius:999px; }
+  .row{
+    display:flex; align-items:center; gap:8px;
+    font-size:12.5px;
+    padding:9px 12px;
+    background: rgba(255,255,255,0.04);
+    border:1px solid var(--stroke);
+    border-radius:11px;
+    transition: background .15s, border-color .15s;
+  }
+  .row:hover{ background:rgba(255,255,255,0.065); border-color: var(--stroke-hi); }
+  .row .name{ font-weight:500; }
+  .row .off{ opacity:0.4; text-decoration:line-through; }
+  .empty{
+    text-align:center;
+    padding:28px 16px;
+    font-size:12.5px;
+    color:var(--ink-faint);
+    background: rgba(255,255,255,0.02);
+    border:1px dashed var(--stroke);
+    border-radius:12px;
+    line-height:1.6;
+  }
+  .empty .emoji{ font-size:24px; display:block; margin-bottom:8px; opacity:0.6; }
+
+  /* update banner */
+  #updateBanner{
+    position:fixed; top:0; left:0; right:0;
+    background: linear-gradient(90deg, rgba(107,140,255,0.95), rgba(184,107,255,0.95));
+    color:#fff;
+    padding:10px 16px;
+    font-size:12.5px; font-weight:500;
+    z-index:300;
+    text-align:center;
+    box-shadow: 0 10px 30px -8px rgba(107,140,255,0.5);
+    backdrop-filter: blur(10px);
+  }
+  #updateBanner a{ color:#fff; text-decoration:underline; font-weight:700; }
+
+  /* responsive */
+  @media (max-width: 860px){
+    header{ padding:10px 12px; gap:8px; }
+    .brand{ padding-right:6px; margin-right:0; border-right:0; width:100%; }
+    .hint{ display:none; }
+    .spacer{ display:none; }
+    header > *{ flex-shrink:0; }
+    header{ overflow-x:auto; }
+    #yard{ margin:10px; }
+    button, select{ min-height:40px; }
+    button.small{ min-height:34px; }
+  }
+  @media (max-width: 520px){
+    .palette{ order:10; width:100%; justify-content:flex-start; flex-wrap:wrap; }
+    #panel{ bottom:10px; width:calc(100% - 20px); flex-wrap:wrap; justify-content:center; }
+    #panel input[type=range]{ width:100%; }
+  }
 </style>
 </head>
 <body>
-<div id="updateBanner" style="display:none; position:fixed; top:0; left:0; right:0; background:linear-gradient(90deg,#7048e8,#3b5bdb); color:#fff; padding:10px 16px; font-size:13px; z-index:100; text-align:center; box-shadow:0 4px 16px rgba(0,0,0,.4);">
-  ⬆️ Update available: <b id="updateVer"></b> — <a id="updateUrl" href="#" target="_blank" style="color:#fff;font-weight:bold;text-decoration:underline;">View release</a>
+
+<div id="updateBanner" style="display:none;">
+  <span>⬆️ Update available: <b id="updateVer"></b></span>
+  &nbsp;·&nbsp;
+  <a id="updateUrl" href="#" target="_blank">View release</a>
 </div>
+
 <header>
-  <h1>💡 Groove Layout</h1>
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true"></div>
+    <h1>Groove <small>Light Layout</small></h1>
+  </div>
   <span class="hint" id="hint">drag bulbs to reorder the chain · effects run along it</span>
   <div class="spacer"></div>
-  <select id="effectSel" style="background:#1a2233;color:#e8ecf5;border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:7px 10px;font-size:12px;">
+
+  <select id="effectSel" aria-label="Effect">
     <option value="chase">🏃 Chase</option>
     <option value="wave">🌊 Wave</option>
     <option value="twinkle">✨ Twinkle</option>
@@ -70,12 +578,20 @@
     <option value="sunset">🌅 Sunset</option>
     <option value="movie">🎬 Movie</option>
   </select>
-  <select id="presetSel" onchange="applyPreset(this.value)" style="background:#1a2233;color:#e8ecf5;border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:7px 10px;font-size:12px;">
+
+  <select id="presetSel" onchange="applyPreset(this.value)" aria-label="Preset">
     <option value="">✨ Presets…</option>
   </select>
+
   <div class="palette" id="palette"></div>
-  <button class="small" onclick="addColor()">+ color</button>
-  <div class="speed">Step <input id="speed" type="range" min="150" max="2000" step="50" value="350" oninput="spdLbl.textContent=this.value+'ms'"> <span id="spdLbl">350ms</span></div>
+  <button class="small ghost" onclick="addColor()">+ color</button>
+
+  <div class="speed" title="Effect step time">
+    <span>Step</span>
+    <input id="speed" type="range" min="150" max="2000" step="50" value="350" oninput="spdLbl.textContent=this.value+'ms'">
+    <span id="spdLbl">350ms</span>
+  </div>
+
   <button id="chaseBtn" onclick="toggleEffect()">Start</button>
   <button class="off" onclick="stopChase()">Stop</button>
   <button class="off" id="linkBtn" onclick="toggleLinkMode()">🔗 Set order</button>
@@ -85,7 +601,15 @@
 </header>
 
 <div id="yard">
-  <svg id="links" viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible;"></svg>
+  <svg id="links" viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none; overflow:visible;">
+    <defs>
+      <linearGradient id="chainGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="#6b8cff" stop-opacity="0.75"/>
+        <stop offset="50%" stop-color="#b86bff" stop-opacity="0.75"/>
+        <stop offset="100%" stop-color="#2ad3b9" stop-opacity="0.75"/>
+      </linearGradient>
+    </defs>
+  </svg>
   <div id="bulbsLayer" style="position:absolute; inset:0;"></div>
 </div>
 
@@ -93,42 +617,44 @@
   <input type="color" id="cpicker" oninput="setColor(this.value)">
   <button class="small" onclick="togglePower()">On/Off</button>
   <input type="range" id="bright" min="1" max="100" value="100" oninput="setBright(this.value)">
-  <span id="pname" style="font-size:12px"></span>
-  <button class="small off" onclick="document.getElementById('panel').style.display='none'">✕</button>
+  <span id="pname"></span>
+  <button class="small ghost" onclick="document.getElementById('panel').style.display='none'">✕</button>
 </div>
 
-<div id="schedModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:200; align-items:center; justify-content:center;">
-  <div style="background:#12172a; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:20px; width:min(480px,92vw);">
-    <h3 style="margin:0 0 4px;">⏰ Schedule an effect</h3>
-    <div style="font-size:11px;color:#8b95b0;margin-bottom:12px;">Uses whatever effect + colors + speed you currently have selected.</div>
-    <div style="margin-bottom:12px;padding:8px 10px;background:rgba(255,255,255,.04);border-radius:9px;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:12px;">🌇 Auto: on at sunset · off at sunrise</span>
+<div id="schedModal" class="modal">
+  <div class="sheet">
+    <button class="close-x" onclick="document.getElementById('schedModal').style.display='none'">✕</button>
+    <h3><span>⏰</span> Schedule an effect</h3>
+    <div class="modal-sub">Uses whatever effect, colors, and speed you currently have selected in the header.</div>
+
+    <div class="dusk-card">
+      <div class="dusk-row">
+        <span class="label"><span class="emoji">🌇</span> Auto: on at sunset · off at sunrise</span>
         <span style="flex:1"></span>
-        <input id="zipInput" placeholder="ZIP code" style="width:84px;background:#0c101c;border:1px solid rgba(255,255,255,.14);border-radius:7px;padding:6px 8px;color:#e8ecf5;font-size:12px;">
+        <input id="zipInput" placeholder="ZIP code">
         <button id="duskBtn" class="small off" onclick="toggleDusk()">Enable</button>
       </div>
-      <div id="duskInfo" style="font-size:11px;color:#8b95b0;margin-top:4px;"></div>
+      <div id="duskInfo"></div>
     </div>
-    <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
-      <input type="time" id="schedTime" style="background:#0c101c;border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:8px;color:#e8ecf5;">
+
+    <div class="field">
+      <input type="time" id="schedTime">
       <button onclick="addSchedule()">Add</button>
     </div>
-    <div id="schedList" style="display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow:auto;"></div>
-    <button class="off small" style="margin-top:14px;" onclick="document.getElementById('schedModal').style.display='none'">Close</button>
+    <div id="schedList" class="list"></div>
   </div>
 </div>
 
-<div id="sceneModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:200; align-items:center; justify-content:center;">
-  <div style="background:#12172a; border:1px solid rgba(255,255,255,.12); border-radius:16px; padding:20px; width:min(480px,92vw);">
-    <h3 style="margin:0 0 4px;">💾 Scenes</h3>
-    <div style="font-size:11px;color:#8b95b0;margin-bottom:12px;">Save your current bulb colors, recall in one tap. Each scene also gets a trigger URL (for Siri / Stream Deck).</div>
-    <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
-      <input id="sceneName" placeholder="Scene name" style="flex:1;background:#0c101c;border:1px solid rgba(255,255,255,.14);border-radius:9px;padding:8px;color:#e8ecf5;font-size:13px;">
+<div id="sceneModal" class="modal">
+  <div class="sheet">
+    <button class="close-x" onclick="document.getElementById('sceneModal').style.display='none'">✕</button>
+    <h3><span>💾</span> Scenes</h3>
+    <div class="modal-sub">Save your current bulb colors and recall in one tap. Each scene also gets a trigger URL — paste it into Siri Shortcuts, Stream Deck, or a browser bookmark.</div>
+    <div class="field">
+      <input id="sceneName" type="text" placeholder="Scene name (e.g. Movie night)">
       <button onclick="saveScene()">Save current</button>
     </div>
-    <div id="sceneList" style="display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow:auto;"></div>
-    <button class="off small" style="margin-top:14px;" onclick="document.getElementById('sceneModal').style.display='none'">Close</button>
+    <div id="sceneList" class="list"></div>
   </div>
 </div>
 
@@ -184,20 +710,25 @@ function sorted(){
 function drawLinks(){
   const svg = document.getElementById('links');
   const order = sorted();
-  let h = '';
+  // preserve <defs> gradient, only replace lines
+  let defs = svg.querySelector('defs');
+  svg.innerHTML = '';
+  if(defs) svg.appendChild(defs);
   for(let i=0; i<order.length-1; i++){
     const a = order[i], b = order[i+1];
-    h += `<line x1="${(a.x*100).toFixed(2)}" y1="${(a.y*100).toFixed(2)}" x2="${(b.x*100).toFixed(2)}" y2="${(b.y*100).toFixed(2)}" stroke="rgba(255,255,255,.16)" stroke-width="0.3" stroke-dasharray="1 1"/>`;
+    const ln = document.createElementNS('http://www.w3.org/2000/svg','line');
+    ln.setAttribute('x1', (a.x*100).toFixed(2));
+    ln.setAttribute('y1', (a.y*100).toFixed(2));
+    ln.setAttribute('x2', (b.x*100).toFixed(2));
+    ln.setAttribute('y2', (b.y*100).toFixed(2));
+    svg.appendChild(ln);
   }
-  svg.innerHTML = h;
 }
 function setBulbColor(b, rgb){
   b.color = rgb;
   if(b.el){
-    const core = b.el.querySelector('.core');
     const glow = b.el.querySelector('.glow');
-    core.style.background = css(rgb);
-    core.style.color = (rgb[0]*0.299+rgb[1]*0.587+rgb[2]*0.114) > 140 ? '#111' : '#fff';
+    b.el.style.color = css(rgb);
     glow.style.background = css(rgb);
   }
 }
@@ -270,7 +801,7 @@ function linkBulb(b){
   if(linkSeq.length === bulbs.length) finishLinking();
 }
 function finishLinking(){
-  if(linkSeq.length !== bulbs.length) bulbs.forEach(b => b.order = null);  // partial → revert to x-order
+  if(linkSeq.length !== bulbs.length) bulbs.forEach(b => b.order = null);
   linkMode = false;
   linkSeq = [];
   const btn = document.getElementById('linkBtn');
@@ -340,6 +871,7 @@ async function toggleEffect(){
   const effect = document.getElementById('effectSel').value;
   await api('/api/effect/start', {ips, effect, colors:palette, step_ms:step});
   document.getElementById('chaseBtn').textContent = 'Running…';
+  document.getElementById('chaseBtn').classList.add('active');
   chasing = true; chaseIdx = 0; chaseLap = 0;
   if(effect === 'chase'){ startLocalMirror(step); }
   else { bulbs.forEach(b => b.el.classList.add('on')); }
@@ -348,7 +880,9 @@ async function stopChase(){
   if(chasing){ await api('/api/effect/stop', {}); }
   chasing = false;
   clearInterval(chaseTimer); chaseTimer = null;
-  document.getElementById('chaseBtn').textContent = 'Start';
+  const b = document.getElementById('chaseBtn');
+  b.textContent = 'Start';
+  b.classList.remove('active');
   bulbs.forEach(b => { b.el.classList.remove('on'); setBulbColor(b, b.color); });
 }
 function startLocalMirror(step){
@@ -389,7 +923,7 @@ async function applyPreset(name){
   document.getElementById('speed').value = p.step_ms;
   spdLbl.textContent = p.step_ms + 'ms';
   await stopChase();
-  await toggleChase();
+  await toggleEffect();
   document.getElementById('presetSel').value = '';
 }
 
@@ -416,12 +950,12 @@ async function loadSchedules(){
     const r = await fetch('/api/schedules'); const list = await r.json();
     const el = document.getElementById('schedList');
     el.innerHTML = (list.length ? list.map(s => `
-      <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:7px 10px;background:rgba(255,255,255,.04);border-radius:9px;">
-        <span style="${s.enabled?'':'opacity:.4;text-decoration:line-through'}">${s.time} · ${s.name || s.effect}</span>
+      <div class="row">
+        <span class="name ${s.enabled?'':'off'}">⏱ ${s.time} · ${s.name || s.effect}</span>
         <span style="flex:1"></span>
-        <button class="small" onclick="toggleSched('${s.id}')">${s.enabled?'off':'on'}</button>
-        <button class="small off" onclick="delSched('${s.id}')">✕</button>
-      </div>`).join('') : '<span style="font-size:12px;color:#8b95b0">no schedules yet</span>');
+        <button class="small ${s.enabled?'':'off'}" onclick="toggleSched('${s.id}')">${s.enabled?'on':'off'}</button>
+        <button class="small ghost" onclick="delSched('${s.id}')">✕</button>
+      </div>`).join('') : '<div class="empty"><span class="emoji">🌙</span>No schedules yet.<br>Pick a time above, then tap Add.</div>');
   }catch(e){}
 }
 async function addSchedule(){
@@ -483,13 +1017,13 @@ async function loadScenes(){
     const el = document.getElementById('sceneList');
     const names = Object.keys(scenes);
     el.innerHTML = names.length ? names.map(n => `
-      <div style="display:flex;align-items:center;gap:8px;font-size:12px;padding:7px 10px;background:rgba(255,255,255,.04);border-radius:9px;">
-        <span>${n}</span>
+      <div class="row">
+        <span class="name">💫 ${n}</span>
         <span style="flex:1"></span>
         <button class="small" onclick="applyScene('${n.replace(/'/g,"\\'")}')">Apply</button>
-        <button class="small" onclick="copyTrigger('${n.replace(/'/g,"\\'")}')" title="copy trigger URL">🔗</button>
-        <button class="small off" onclick="delScene('${n.replace(/'/g,"\\'")}')">✕</button>
-      </div>`).join('') : '<span style="font-size:12px;color:#8b95b0">no scenes yet — set your colors, then save</span>';
+        <button class="small ghost" onclick="copyTrigger('${n.replace(/'/g,"\\'")}')" title="copy trigger URL">🔗</button>
+        <button class="small ghost" onclick="delScene('${n.replace(/'/g,"\\'")}')">✕</button>
+      </div>`).join('') : '<div class="empty"><span class="emoji">🎨</span>No scenes yet.<br>Set your bulb colors, then tap Save current.</div>';
   }catch(e){}
 }
 async function saveScene(){
@@ -518,6 +1052,17 @@ function copyTrigger(name){
 
 load();
 loadPresets();
+
+// click outside modal to close
+document.querySelectorAll('.modal').forEach(m => {
+  m.addEventListener('click', e => { if(e.target === m) m.style.display = 'none'; });
+});
+// click outside panel to close
+document.addEventListener('pointerdown', e => {
+  if(panel.style.display === 'flex' && !panel.contains(e.target) && !e.target.closest('.bulb')){
+    panel.style.display = 'none';
+  }
+});
 
 // update notification
 async function checkUpdates(){
