@@ -17,7 +17,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.15.0"
+VERSION = "2.15.1"
 BUILD_DATE = "2026-11-15"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -995,7 +995,7 @@ def api_layout_save():
 
 @app.route("/layout")
 def layout_page():
-    p = os.path.join(RES_DIR, "layout.html")
+    p = os.path.join(RES_DIR, "assets", "layout.html")
     try:
         with open(p) as f:
             return f.read()
@@ -1005,7 +1005,7 @@ def layout_page():
 
 @app.route("/setup")
 def setup_page():
-    p = os.path.join(RES_DIR, "setup.html")
+    p = os.path.join(RES_DIR, "assets", "setup.html")
     try:
         with open(p) as f:
             return f.read()
@@ -1603,7 +1603,7 @@ def _log(msg):
 def _run_tray(port):
     import pystray
     from PIL import Image
-    ip = os.path.join(RES_DIR, "icon.png")
+    ip = os.path.join(RES_DIR, "assets", "icon.png")
     try:
         img = Image.open(ip).convert("RGBA")
     except Exception:
