@@ -577,6 +577,16 @@
     <option value="aurora">🌌 Aurora</option>
     <option value="sunset">🌅 Sunset</option>
     <option value="movie">🎬 Movie</option>
+    <option value="pendulum">🕰 Pendulum</option>
+    <option value="larson">🏎 Larson Scanner</option>
+    <option value="confetti">🎉 Confetti</option>
+    <option value="fireflies">✨ Fireflies</option>
+    <option value="comet">☄️ Comet</option>
+    <option value="drip">🖌 Color Drip</option>
+    <option value="marquee">🎪 Marquee</option>
+    <option value="snake">🐍 Snake</option>
+    <option value="thunderstorm">⛈ Thunderstorm</option>
+    <option value="plasma">🌊 Plasma</option>
   </select>
 
   <select id="presetSel" onchange="applyPreset(this.value)" aria-label="Preset">
@@ -596,6 +606,7 @@
   <button class="off" onclick="stopChase()">Stop</button>
   <button class="off" id="linkBtn" onclick="toggleLinkMode()">🔗 Set order</button>
   <button class="off" onclick="surprise()">🎲 Surprise</button>
+  <button class="off" id="partyBtn" onclick="toggleParty()">🎉 Party</button>
   <button class="off" onclick="openSched()">⏰ Schedule</button>
   <button class="off" onclick="openScenes()">💾 Scenes</button>
   <button class="off" onclick="openAdd()">➕ Add</button>
@@ -618,7 +629,7 @@
   <input type="color" id="cpicker" oninput="setColor(this.value)">
   <button class="small" onclick="togglePower()">On/Off</button>
   <input type="range" id="bright" min="1" max="100" value="100" oninput="setBright(this.value)">
-  <span id="pname"></span>
+  <input id="pname" type="text" placeholder="Name" onchange="renameSelected(this.value)" style="font-size:12px;color:var(--ink);background:rgba(255,255,255,0.05);border:1px solid var(--stroke);border-radius:8px;padding:5px 8px;width:110px;">
   <button class="small ghost" onclick="document.getElementById('panel').style.display='none'">✕</button>
 </div>
 
@@ -878,7 +889,7 @@ function finishLinking(){
 // ---- control ----
 function select(b){
   selected = b;
-  document.getElementById('pname').textContent = b.name;
+  document.getElementById('pname').value = b.name;
   const c = b.color;
   document.getElementById('cpicker').value = '#'+c.map(v=>v.toString(16).padStart(2,'0')).join('');
   panel.style.display = 'flex';
@@ -901,6 +912,14 @@ function togglePower(){
 function setBright(v){
   if(!selected) return;
   api('/api/lan/control', {ip:selected.ip, cmd:{name:'brightness', value:parseInt(v)}});
+}
+async function renameSelected(name){
+  if(!selected) return;
+  name = (name || '').trim();
+  if(!name) return;
+  selected.name = name;
+  await api('/api/lan/rename', {device_id: selected.id, name});
+  renderBulbs();
 }
 
 // ---- palette ----
@@ -996,6 +1015,26 @@ function surprise(){
   document.getElementById('speed').value = step;
   spdLbl.textContent = step + 'ms';
   stopChase().then(() => toggleEffect());
+}
+
+// ---- party mode (continuous random rotation) ----
+let partyTimer = null;
+async function toggleParty(){
+  const b = document.getElementById('partyBtn');
+  if(partyTimer){ clearInterval(partyTimer); partyTimer = null; b.classList.remove('active'); b.textContent = '🎉 Party'; return; }
+  b.classList.add('active'); b.textContent = '🎉 Party…';
+  const run = () => {
+    const effs = ['chase','wave','twinkle','meteor','confetti','fireworks','disco','rainbow','strobe','comet','snake','plasma','fireflies','larson','drip','pendulum','marquee'];
+    document.getElementById('effectSel').value = effs[Math.floor(Math.random()*effs.length)];
+    const n = 3 + Math.floor(Math.random()*5);
+    palette = Array.from({length:n}, () => [Math.floor(Math.random()*256), Math.floor(Math.random()*256), Math.floor(Math.random()*256)]);
+    renderPalette();
+    const step = 150 + Math.floor(Math.random()*6)*100;
+    document.getElementById('speed').value = step; spdLbl.textContent = step + 'ms';
+    stopChase().then(() => toggleEffect());
+  };
+  run();
+  partyTimer = setInterval(run, 22000);
 }
 
 // ---- scheduler ----

@@ -16,7 +16,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "1.8.0"
+VERSION = "1.9.0"
 BUILD_DATE = "2026-11-15"
 
 
@@ -399,6 +399,143 @@ def _run_effect(ip_list, effect, colors, step_ms):
         while not _effect_stop.is_set():
             _effect_stop.wait(1)
 
+    elif effect == "pendulum":
+        import math
+        for ip in ip_list: lan_turn(ip, True)
+        t = 0.0
+        while not _effect_stop.is_set():
+            pos = (math.sin(t) + 1) / 2.0
+            idx = int(round(pos * (n - 1)))
+            for i, ip in enumerate(ip_list):
+                if i == idx:
+                    lan_color(ip, colors[0]); lan_brightness(ip, 100)
+                else:
+                    lan_brightness(ip, 6)
+            t += 0.12
+            _effect_stop.wait(max(step_ms, 60) / 1000.0)
+
+    elif effect == "larson":
+        head = colors[0] if colors else [255, 0, 0]
+        for ip in ip_list: lan_turn(ip, True)
+        idx = 0; direction = 1; tail = 3
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                d = abs(i - idx)
+                if d == 0:
+                    lan_color(ip, head); lan_brightness(ip, 100)
+                elif d <= tail:
+                    lan_color(ip, head); lan_brightness(ip, max(4, 100 - d * 28))
+                else:
+                    lan_brightness(ip, 3)
+            idx += direction
+            if idx >= n - 1 or idx <= 0:
+                direction *= -1
+            _effect_stop.wait(max(step_ms, 80) / 1000.0)
+
+    elif effect == "confetti":
+        for ip in ip_list: lan_turn(ip, True); lan_brightness(ip, 4)
+        while not _effect_stop.is_set():
+            i = random.randrange(n)
+            lan_color(ip_list[i], _hsv(random.random())); lan_brightness(ip_list[i], 100)
+            _effect_stop.wait(0.12)
+            lan_brightness(ip_list[i], 4)
+            _effect_stop.wait(max(step_ms, 120) / 1000.0)
+
+    elif effect == "fireflies":
+        warm = [[255, 200, 60], [255, 170, 30], [220, 180, 40]]
+        for ip in ip_list: lan_turn(ip, True); lan_brightness(ip, 3)
+        while not _effect_stop.is_set():
+            for _ in range(random.randint(1, 2)):
+                i = random.randrange(n)
+                lan_color(ip_list[i], random.choice(warm))
+                for b in (30, 60, 40):
+                    if _effect_stop.is_set(): break
+                    lan_brightness(ip_list[i], b)
+                    _effect_stop.wait(0.3)
+                lan_brightness(ip_list[i], 3)
+            _effect_stop.wait(random.uniform(0.5, 1.5))
+
+    elif effect == "comet":
+        for ip in ip_list: lan_turn(ip, True); lan_brightness(ip, 3)
+        tail = 3
+        while not _effect_stop.is_set():
+            i = random.randrange(n)
+            c = _hsv(random.random())
+            for _ in range(n):
+                if _effect_stop.is_set(): break
+                for j in range(n):
+                    d = (j - i) % n
+                    if d == 0:
+                        lan_color(ip_list[j], c); lan_brightness(ip_list[j], 100)
+                    elif d <= tail:
+                        lan_color(ip_list[j], c); lan_brightness(ip_list[j], max(4, 100 - d * 28))
+                    else:
+                        lan_brightness(ip_list[j], 3)
+                i = (i + 1) % n
+                _effect_stop.wait(max(step_ms, 80) / 1000.0)
+
+    elif effect == "drip":
+        for ip in ip_list: lan_turn(ip, True); lan_brightness(ip, 6)
+        c = colors[0]; idx = 0
+        while not _effect_stop.is_set():
+            lan_color(ip_list[idx], c); lan_brightness(ip_list[idx], 100)
+            _effect_stop.wait(max(step_ms, 150) / 1000.0)
+            lan_brightness(ip_list[idx], 6)
+            idx = (idx + 1) % n
+
+    elif effect == "marquee":
+        gap = 3
+        for ip in ip_list: lan_turn(ip, True)
+        off = 0
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                if (i + off) % gap == 0:
+                    lan_color(ip, colors[0]); lan_brightness(ip, 100)
+                else:
+                    lan_color(ip, colors[1] if nc > 1 else [0, 0, 0]); lan_brightness(ip, 15)
+            off += 1
+            _effect_stop.wait(max(step_ms, 250) / 1000.0)
+
+    elif effect == "snake":
+        for ip in ip_list: lan_turn(ip, True); lan_brightness(ip, 4)
+        idx = 0; direction = 1
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                if i == idx:
+                    lan_color(ip, colors[0]); lan_brightness(ip, 100)
+                else:
+                    lan_brightness(ip, 4)
+            idx += direction
+            if idx >= n - 1 or idx <= 0:
+                if random.random() < 0.5: direction *= -1
+            if random.random() < 0.06: direction *= -1
+            _effect_stop.wait(max(step_ms, 120) / 1000.0)
+
+    elif effect == "thunderstorm":
+        base = (colors or [[20, 40, 90]])[0]
+        for ip in ip_list: lan_turn(ip, True); lan_color(ip, base); lan_brightness(ip, 20)
+        while not _effect_stop.is_set():
+            _effect_stop.wait(random.uniform(1, 5))
+            if _effect_stop.is_set(): break
+            i = random.randrange(n)
+            for _ in range(random.randint(2, 4)):
+                lan_color(ip_list[i], [255, 255, 255]); lan_brightness(ip_list[i], 100)
+                _effect_stop.wait(0.06)
+                lan_brightness(ip_list[i], 20)
+                _effect_stop.wait(0.04)
+            lan_color(ip_list[i], base)
+
+    elif effect == "plasma":
+        import math
+        for ip in ip_list: lan_turn(ip, True)
+        t = 0.0
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                h = (math.sin(i * 0.35 + t) + math.sin(i * 0.15 - t * 0.6)) / 2.0 + 0.5
+                lan_color(ip, _hsv(h % 1.0))
+            t += 0.06
+            _effect_stop.wait(max(step_ms, 60) / 1000.0)
+
     elif effect in ("gradient", "solid"):
         for i, ip in enumerate(ip_list):
             c = colors[i % nc] if effect == "gradient" else colors[0]
@@ -573,6 +710,18 @@ def api_lan_remove():
     return jsonify(removed=True, bulbs=len(LAN_MAP))
 
 
+@app.route("/api/lan/rename", methods=["POST"])
+def api_lan_rename():
+    body = request.get_json(force=True) or {}
+    device_id = (body.get("device_id") or "").strip()
+    name = (body.get("name") or "").strip()
+    if not device_id or not name:
+        return jsonify(error="device_id and name are required"), 400
+    NAMES[device_id] = name
+    _write_json(os.path.join(os.path.dirname(os.path.abspath(__file__)), "names.json"), NAMES)
+    return jsonify(saved=True, name=name)
+
+
 @app.route("/api/lan/control", methods=["POST"])
 def api_lan_control():
     body = request.get_json(force=True) or {}
@@ -744,7 +893,9 @@ def api_effects():
     return jsonify(["chase", "wave", "twinkle", "meteor", "breathe", "fire", "strobe",
                     "gradient", "solid", "sparkle", "heartbeat", "lightning", "police",
                     "rainbow", "countdown", "sos", "ocean", "candycane", "jacko",
-                    "fireworks", "disco", "aurora", "sunset", "movie"])
+                    "fireworks", "disco", "aurora", "sunset", "movie",
+                    "pendulum", "larson", "confetti", "fireflies", "comet", "drip",
+                    "marquee", "snake", "thunderstorm", "plasma"])
 
 
 @app.route("/api/scan")
