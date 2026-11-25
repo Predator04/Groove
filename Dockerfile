@@ -13,5 +13,8 @@ ENV GROOVE_DATA_DIR=/data
 VOLUME /data
 
 EXPOSE 8813
+EXPOSE 4001/udp 4002/udp 4003/udp
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8813/ping', timeout=3)" || exit 1
 
 CMD ["python", "app.py"]

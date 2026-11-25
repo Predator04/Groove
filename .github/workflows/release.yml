@@ -13,7 +13,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install pyinstaller
+      - run: pip install -r requirements.txt pyinstaller
       - name: Build exe
         run: |
           pyinstaller --onefile --add-data "layout.html;." --add-data "setup.html;." --add-data "assets;assets" --name Groove app.py
@@ -34,10 +34,12 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Normalize image name (GHCR requires lowercase)
+        run: echo "IMAGE_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
       - uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.ref_name }}
+            ghcr.io/${{ env.IMAGE_LC }}:latest
+            ghcr.io/${{ env.IMAGE_LC }}:${{ github.ref_name }}

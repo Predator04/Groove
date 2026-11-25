@@ -64,7 +64,7 @@ def e500(e): return jsonify(error="internal server error"), 500
 @app.errorhandler(Exception)
 def eany(e):
     traceback.print_exc()
-    return jsonify(error="server error", detail=str(e)), 500
+    return jsonify(error="server error"), 500
 
 
 # ---- Govee API client ----
@@ -587,7 +587,7 @@ def version():
         version=VERSION,
         commit="n/a",
         build_date=BUILD_DATE,
-        features=["9 LAN effects", "drag-and-drop layout", "presets", "zero rate limit", "setup wizard", "per-bulb control"],
+        features=["34 effects", "drag-and-drop layout", "party themes", "presets", "scenes", "schedules", "sunset automation", "zero rate limit", "setup wizard", "per-bulb control"],
     )
 
 
