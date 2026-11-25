@@ -458,6 +458,7 @@
   .sim-bulb{ position:absolute; width:46px; height:56px; border-radius:50% 50% 45% 45%; background:#4a4a5c; border:2px solid rgba(255,255,255,0.45); transform:translate(-50%,-50%); cursor:grab; transition:background 60ms linear; }
   .sim-bulb.dragging{ cursor:grabbing; z-index:50; transform:translate(-50%,-50%) scale(1.15); }
   .sim-bulb.hover{ outline:3px solid #fff; outline-offset:2px; }
+  .sim-ord{ position:absolute; top:-14px; left:50%; transform:translateX(-50%); font-size:10px; font-weight:700; color:#fff; background:rgba(107,140,255,0.95); border-radius:50%; width:18px; height:18px; display:none; align-items:center; justify-content:center; pointer-events:none; }
   .sim-palette{ display:flex; flex-wrap:wrap; gap:7px; padding:4px 2px; margin-bottom:8px; }
   .sim-swatch{ width:30px; height:30px; border-radius:50%; cursor:grab; border:2px solid rgba(255,255,255,0.45); box-shadow:0 0 6px rgba(0,0,0,0.4); }
   .sim-swatch:hover{ transform:scale(1.15); }
@@ -792,6 +793,8 @@
     <input id="builderName" type="text" placeholder="Name your mode (e.g. Halloween)">
     <button onclick="saveBuiltMode()">💾 Save</button>
     <button onclick="previewBuiltMode()">▶ Preview</button>
+    <button class="ghost" onclick="toggleSimLink()">🔗 Link</button>
+    <button class="ghost" onclick="toggleSimDelete()">🗑 Delete</button>
     <button class="ghost" onclick="closeBuilder()">Back</button>
   </div>
   <div class="builder-body">
@@ -1280,26 +1283,32 @@ function shade(rgb, f){
   return `rgb(${Math.round(m[0]*f)},${Math.round(m[1]*f)},${Math.round(m[2]*f)})`;
 }
 let simBulbs = [];
+let simLink = [];
+let simLinkMode = false;
+let deleteMode = false;
 const SIM_COLORS = [[255,0,0],[255,90,0],[255,170,0],[255,240,0],[150,255,0],[0,255,0],[0,220,200],[0,160,255],[0,60,255],[120,0,255],[220,0,255],[255,0,180],[255,255,255],[255,220,170],[255,120,120],[80,80,100]];
 async function buildSimYard(){
   const layer = document.getElementById('simLayer');
   layer.innerHTML = '';
+  simLink = [];
   let positions = [];
   try {
     const d = await (await fetch('/api/layout')).json();
-    positions = (d.bulbs || []).map(b => ({x: b.x, y: b.y}));
+    positions = (d.bulbs || []).map(b => ({id: b.id, x: b.x, y: b.y}));
   } catch(e) {}
   if(!positions.length){
-    positions = Array.from({length: 8}, (_, i) => ({x: 0.06 + i*0.115, y: 0.5}));
+    positions = Array.from({length: 8}, (_, i) => ({id: null, x: 0.06 + i*0.115, y: 0.5}));
   }
   simBulbs = positions.map(p => {
     const el = document.createElement('div');
     el.className = 'sim-bulb';
     el.style.left = (p.x*100)+'%';
     el.style.top = (p.y*100)+'%';
+    const b = {id: p.id, x: p.x, y: p.y, el, color: null};
     el.addEventListener('pointerdown', e => simStartDrag(e, el));
+    el.addEventListener('click', () => simClick(b));
     layer.appendChild(el);
-    return {x: p.x, y: p.y, el, color: null};
+    return b;
   });
   buildPalette();
   buildFx();
@@ -1326,8 +1335,54 @@ function buildFx(){
     row.appendChild(chip);
   });
 }
+function toggleSimLink(){
+  simLinkMode = !simLinkMode;
+  deleteMode = false;
+  document.getElementById('simStatus').textContent = simLinkMode
+    ? 'Link mode: tap bulbs in the order effects should travel. Tap 🔗 again when done.'
+    : 'Link order set — effects follow it.';
+  refreshSimOrd();
+}
+function toggleSimDelete(){
+  deleteMode = !deleteMode;
+  simLinkMode = false;
+  document.getElementById('simStatus').textContent = deleteMode
+    ? 'Delete mode: tap a bulb to remove it from Groove (it stays in the Govee app).'
+    : '';
+}
+function simClick(b){
+  if(deleteMode){ deleteSimBulb(b); return; }
+  if(simLinkMode){ linkSimBulb(b); return; }
+}
+function linkSimBulb(b){
+  const i = simLink.indexOf(b);
+  if(i >= 0){ simLink.splice(i, 1); }
+  else { simLink.push(b); }
+  refreshSimOrd();
+}
+function refreshSimOrd(){
+  simBulbs.forEach(b => {
+    const i = simLink.indexOf(b);
+    let badge = b.el.querySelector('.sim-ord');
+    if(!badge){
+      badge = document.createElement('span');
+      badge.className = 'sim-ord';
+      b.el.appendChild(badge);
+    }
+    badge.textContent = i >= 0 ? (i + 1) : '';
+    badge.style.display = (i >= 0 || simLinkMode) ? 'flex' : 'none';
+  });
+}
+async function deleteSimBulb(b){
+  if(!b.id){ return; }
+  if(!confirm('Remove this light from Groove? It stays in your Govee app.')) return;
+  await fetch('/api/lan/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({device_id: b.id})});
+  document.getElementById('simStatus').textContent = 'Light removed.';
+  await buildSimYard();
+}
 let simDrag = null;
 function simStartDrag(e, el){
+  if(simLinkMode || deleteMode) return;
   simDrag = {el};
   const rect = document.getElementById('simYard').getBoundingClientRect();
   const b = simBulbs.find(b => b.el === el);
@@ -1457,7 +1512,7 @@ function pickSimEffect(){
   sim.effectDur = (sim.theme === 'christmas' ? 18 : 22) * 1000;
 }
 function renderSim(t){
-  const bulbs = [...simBulbs].sort((a,b) => a.x - b.x);
+  const bulbs = simLink.length ? [...simLink] : [...simBulbs].sort((a,b) => a.x - b.x);
   const n = bulbs.length;
   const col = sim.colors.length ? sim.colors : ['rgb(255,255,255)'];
   for(let i=0;i<n;i++){
