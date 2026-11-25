@@ -17,7 +17,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.15.1"
+VERSION = "2.15.2"
 BUILD_DATE = "2026-11-15"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -993,11 +993,26 @@ def api_layout_save():
     return jsonify(saved=True, count=len(LAYOUT))
 
 
+def _res(name):
+    for d in (os.path.join(RES_DIR, "assets"), RES_DIR, os.path.join(BASE_DIR, "assets"), BASE_DIR):
+        path = os.path.join(d, name)
+        if os.path.exists(path):
+            return path
+    return os.path.join(RES_DIR, "assets", name)
+
+
+def _res_dir(name):
+    for d in (os.path.join(RES_DIR, name), os.path.join(BASE_DIR, name)):
+        if os.path.isdir(d):
+            return d
+    return os.path.join(RES_DIR, name)
+
+
 @app.route("/layout")
 def layout_page():
-    p = os.path.join(RES_DIR, "assets", "layout.html")
+    p = _res("layout.html")
     try:
-        with open(p) as f:
+        with open(p, encoding="utf-8") as f:
             return f.read()
     except Exception:
         return "<h1>layout.html missing</h1>"
@@ -1005,9 +1020,9 @@ def layout_page():
 
 @app.route("/setup")
 def setup_page():
-    p = os.path.join(RES_DIR, "assets", "setup.html")
+    p = _res("setup.html")
     try:
-        with open(p) as f:
+        with open(p, encoding="utf-8") as f:
             return f.read()
     except Exception:
         return "<h1>setup.html missing</h1>"
@@ -1016,7 +1031,7 @@ def setup_page():
 @app.route("/assets/<path:filename>")
 def serve_asset(filename):
     from flask import send_from_directory
-    assets_dir = os.path.join(RES_DIR, "assets")
+    assets_dir = _res_dir("assets")
     return send_from_directory(assets_dir, filename)
 
 
@@ -1603,7 +1618,7 @@ def _log(msg):
 def _run_tray(port):
     import pystray
     from PIL import Image
-    ip = os.path.join(RES_DIR, "assets", "icon.png")
+    ip = _res("icon.png")
     try:
         img = Image.open(ip).convert("RGBA")
     except Exception:
