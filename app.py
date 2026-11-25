@@ -17,7 +17,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.12.0"
+VERSION = "2.13.0"
 BUILD_DATE = "2026-11-15"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -838,7 +838,7 @@ def _party_loop(theme):
     step_lo = 250 if theme == "christmas" else 150
     step_hi = 650 if theme == "christmas" else 550
     while not _party_stop.is_set():
-        ips = _ordered_ips()
+        ips = _ordered_ips_for_theme(cfg)
         if not ips:
             _party_stop.wait(5)
             continue
@@ -901,7 +901,10 @@ def api_party_themes_save():
         return jsonify(error="name cannot contain / ? #"), 400
     if not isinstance(effects, list) or not isinstance(palettes, list):
         return jsonify(error="effects and palettes must be lists"), 400
-    PARTY_THEMES[name] = {"effects": effects, "palettes": palettes}
+    order = body.get("order") or []
+    if not isinstance(order, list):
+        return jsonify(error="order must be a list"), 400
+    PARTY_THEMES[name] = {"effects": effects, "palettes": palettes, "order": order}
     _write_json(os.path.join(BASE_DIR, "party.json"), PARTY_THEMES)
     return jsonify(saved=True, name=name)
 
@@ -1118,6 +1121,20 @@ def _ordered_ips():
     else:
         entries.sort(key=lambda e: e[1])
     return [e[2] for e in entries]
+
+
+def _ordered_ips_for_theme(cfg):
+    order = cfg.get("order") or []
+    if not order:
+        return _ordered_ips()
+    by_id = {device_id: ip for device_id, ip in LAN_MAP.items()}
+    ips = [by_id[d] for d in order if d in by_id]
+    seen = set(ips)
+    for device_id, ip in LAN_MAP.items():
+        if ip not in seen:
+            ips.append(ip)
+            seen.add(ip)
+    return ips
 
 
 SCHEDULES = _load_json("schedules.json", [])

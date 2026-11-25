@@ -1260,7 +1260,7 @@ function renderPartyEditor(){
 async function saveTheme(name){
   const cfg = THEMES[name];
   await fetch('/api/party/themes', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({name, effects: cfg.effects || [], palettes: cfg.palettes || []})});
+    body: JSON.stringify({name, effects: cfg.effects || [], palettes: cfg.palettes || [], order: cfg.order || []})});
 }
 async function addThemeItem(name, key, value){
   const cfg = THEMES[name];
@@ -1765,7 +1765,8 @@ async function saveBuiltMode(){
   const name = document.getElementById('builderName').value.trim();
   if(!name){ alert('Give your mode a name first'); return; }
   const cols = [...new Set(simBulbs.map(b => b.color ? b.color.join(',') : null).filter(Boolean))].map(c => c.split(',').map(Number));
-  THEMES[name] = {effects: ['chase','wave','rainbow','disco','twinkle'], palettes: cols.length ? [cols] : []};
+  const order = simLink.map(b => b.id).filter(Boolean);
+  THEMES[name] = {effects: ['chase','wave','rainbow','disco','twinkle'], palettes: cols.length ? [cols] : [], order};
   await saveTheme(name);
   document.getElementById('builderName').value = '';
   closeBuilder();
