@@ -785,36 +785,46 @@ def api_effect_stop():
 _party_thread = None
 _party_stop = threading.Event()
 
-CHRISTMAS_EFFECTS = ["candycane", "chase", "sparkle", "twinkle", "fireflies", "wave", "gradient", "breathe"]
-CHRISTMAS_PALETTES = [
-    [[0, 180, 0], [200, 0, 0], [255, 255, 255]],
-    [[200, 0, 0], [0, 180, 0]],
-    [[200, 0, 0], [255, 255, 255]],
-    [[200, 0, 0], [0, 180, 0], [255, 200, 0]],
-    [[255, 255, 255], [255, 230, 180]],
-    [[0, 180, 0], [200, 0, 0], [255, 200, 0], [255, 255, 255]],
-]
-PARTY_EFFECTS = ["chase", "wave", "twinkle", "meteor", "confetti", "fireworks", "disco", "rainbow",
-                 "strobe", "comet", "snake", "plasma", "fireflies", "larson", "drip", "pendulum", "marquee"]
+DEFAULT_PARTY_THEMES = {
+    "christmas": {
+        "effects": ["candycane", "chase", "sparkle", "twinkle", "fireflies", "wave", "gradient", "breathe"],
+        "palettes": [
+            [[0, 180, 0], [200, 0, 0], [255, 255, 255]],
+            [[200, 0, 0], [0, 180, 0]],
+            [[200, 0, 0], [255, 255, 255]],
+            [[200, 0, 0], [0, 180, 0], [255, 200, 0]],
+            [[255, 255, 255], [255, 230, 180]],
+            [[0, 180, 0], [200, 0, 0], [255, 200, 0], [255, 255, 255]],
+        ],
+    },
+    "random": {
+        "effects": ["chase", "wave", "twinkle", "meteor", "confetti", "fireworks", "disco", "rainbow",
+                    "strobe", "comet", "snake", "plasma", "fireflies", "larson", "drip", "pendulum", "marquee"],
+        "palettes": [],
+    },
+}
 
 
 def _party_loop(theme):
+    cfg = PARTY_THEMES.get(theme) or PARTY_THEMES.get("random") or {"effects": [], "palettes": []}
+    effects = cfg.get("effects") or ["chase", "wave", "twinkle", "disco", "rainbow", "strobe", "fireflies"]
+    palettes = cfg.get("palettes") or []
+    interval = 18 if theme == "christmas" else 22
+    step_lo = 250 if theme == "christmas" else 150
+    step_hi = 650 if theme == "christmas" else 550
     while not _party_stop.is_set():
         ips = _ordered_ips()
         if not ips:
             _party_stop.wait(5)
             continue
-        if theme == "christmas":
-            effect = random.choice(CHRISTMAS_EFFECTS)
-            colors = random.choice(CHRISTMAS_PALETTES)
-            step = random.randint(250, 650)
+        effect = random.choice(effects)
+        if palettes:
+            colors = list(random.choice(palettes))
         else:
-            effect = random.choice(PARTY_EFFECTS)
             n = random.randint(3, 7)
             colors = [[random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)] for _ in range(n)]
-            step = random.randint(150, 550)
-        start_effect(ips, effect, colors, step)
-        _party_stop.wait(18 if theme == "christmas" else 22)
+        start_effect(ips, effect, colors, random.randint(step_lo, step_hi))
+        _party_stop.wait(interval)
 
 
 @app.route("/api/party/start", methods=["POST"])
@@ -822,8 +832,8 @@ def api_party_start():
     global _party_thread
     body = request.get_json(force=True) or {}
     theme = body.get("theme", "random")
-    if theme not in ("christmas", "random"):
-        return jsonify(error="theme must be christmas or random"), 400
+    if not theme or theme not in PARTY_THEMES:
+        return jsonify(error=f"unknown theme: {theme}"), 400
     _party_stop.clear()
     if _party_thread and _party_thread.is_alive():
         _party_thread.join(timeout=1)
@@ -837,6 +847,33 @@ def api_party_stop():
     _party_stop.set()
     _effect_stop.set()
     return jsonify(stopped=True)
+
+
+@app.route("/api/party/themes")
+def api_party_themes():
+    return jsonify(PARTY_THEMES)
+
+
+@app.route("/api/party/themes", methods=["POST"])
+def api_party_themes_save():
+    body = request.get_json(force=True) or {}
+    name = (body.get("name") or "").strip()
+    effects = body.get("effects") or []
+    palettes = body.get("palettes") or []
+    if not name:
+        return jsonify(error="name is required"), 400
+    PARTY_THEMES[name] = {"effects": effects, "palettes": palettes}
+    _write_json(os.path.join(BASE_DIR, "party.json"), PARTY_THEMES)
+    return jsonify(saved=True, name=name)
+
+
+@app.route("/api/party/themes/<name>", methods=["DELETE"])
+def api_party_theme_delete(name):
+    if name in ("christmas", "random"):
+        return jsonify(error="built-in themes cannot be deleted"), 400
+    PARTY_THEMES.pop(name, None)
+    _write_json(os.path.join(BASE_DIR, "party.json"), PARTY_THEMES)
+    return jsonify(deleted=True, name=name)
 
 
 @app.route("/api/lan/chase/start", methods=["POST"])
@@ -948,6 +985,7 @@ DEFAULT_PRESETS = {
     "Candy": {"colors": [[255, 80, 180], [0, 200, 0], [255, 255, 255], [255, 0, 0]], "step_ms": 350},
 }
 PRESETS = _load_json("presets.json", DEFAULT_PRESETS)
+PARTY_THEMES = _load_json("party.json", DEFAULT_PARTY_THEMES)
 
 
 @app.route("/api/presets")

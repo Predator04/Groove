@@ -444,6 +444,16 @@
     margin-bottom:8px;
   }
   .help-sec b{ color:var(--ink); }
+  .theme-sec{ padding:12px; border-radius:12px; background:rgba(255,255,255,0.03); border:1px solid var(--stroke); margin-bottom:10px; }
+  .theme-head{ display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .theme-head b{ text-transform:capitalize; }
+  .chips{ display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; align-items:center; }
+  .chip{ display:inline-flex; align-items:center; gap:4px; font-size:11px; padding:3px 8px; border-radius:999px; background:rgba(255,255,255,0.07); border:1px solid var(--stroke); color:var(--ink); }
+  .chip .x{ cursor:pointer; color:var(--ink-faint); font-weight:700; }
+  .chip .x:hover{ color:var(--danger); }
+  .chip-color{ width:24px; height:24px; border-radius:50%; border:2px solid rgba(255,255,255,0.3); padding:0; justify-content:center; }
+  .chip-color .x{ font-size:9px; }
+  .muted{ font-size:11px; color:var(--ink-faint); }
 
   .field{
     display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap; align-items:center;
@@ -615,6 +625,7 @@
   <button class="off" onclick="surprise()">🎲 Surprise</button>
   <button class="off" id="partyBtn" onclick="toggleParty()">🎉 Party</button>
   <button class="off" id="xmasBtn" onclick="toggleChristmas()">🎄 Christmas</button>
+  <button class="off" onclick="openPartyEditor()">🎛 Party setup</button>
   <button class="off" onclick="openSched()">⏰ Schedule</button>
   <button class="off" onclick="openScenes()">💾 Scenes</button>
   <button class="off" onclick="openAdd()">➕ Add</button>
@@ -726,6 +737,19 @@
 
     <div class="help-sec"><b>✨ Presets · 🎲 Surprise</b><br>
       <b>Presets</b> are one-tap saved setups. <b>Surprise</b> instantly picks a random effect with random colors.</div>
+  </div>
+</div>
+
+<div id="partyModal" class="modal">
+  <div class="sheet">
+    <button class="close-x" onclick="document.getElementById('partyModal').style.display='none'">✕</button>
+    <h3><span>🎛</span> Party modes</h3>
+    <div class="modal-sub">Edit which effects and colors each party mode cycles through, or create your own.</div>
+    <div id="partyList"></div>
+    <div class="field" style="margin-top:12px;">
+      <input id="newThemeName" type="text" placeholder="New party name (e.g. Halloween)">
+      <button onclick="createTheme()">Create</button>
+    </div>
   </div>
 </div>
 
@@ -1081,6 +1105,105 @@ async function startParty(theme){
 }
 function toggleParty(){ partyTheme === 'random' ? stopParty() : startParty('random'); }
 function toggleChristmas(){ partyTheme === 'christmas' ? stopParty() : startParty('christmas'); }
+let THEMES = {};
+let ALL_EFFECTS = [];
+async function openPartyEditor(){
+  document.getElementById('partyModal').style.display = 'flex';
+  const [t, e] = await Promise.all([
+    (await fetch('/api/party/themes')).json(),
+    (await fetch('/api/effects')).json(),
+  ]);
+  THEMES = t; ALL_EFFECTS = e;
+  renderPartyEditor();
+}
+function chip(label, fn){
+  const c = document.createElement('span'); c.className = 'chip';
+  c.appendChild(document.createTextNode(label + ' '));
+  const x = document.createElement('b'); x.className = 'x'; x.textContent = '✕'; x.onclick = fn;
+  c.appendChild(x); return c;
+}
+function renderPartyEditor(){
+  const list = document.getElementById('partyList');
+  list.innerHTML = '';
+  Object.entries(THEMES).forEach(([name, cfg]) => {
+    const sec = document.createElement('div'); sec.className = 'theme-sec';
+    const head = document.createElement('div'); head.className = 'theme-head';
+    const title = document.createElement('b'); title.textContent = name;
+    const run = document.createElement('button'); run.className = 'small'; run.textContent = 'Run';
+    run.onclick = () => startTheme(name);
+    head.appendChild(title); head.appendChild(run);
+    if(name !== 'christmas' && name !== 'random'){
+      const del = document.createElement('button'); del.className = 'small ghost'; del.textContent = '✕';
+      del.onclick = () => deleteTheme(name);
+      head.appendChild(del);
+    }
+    sec.appendChild(head);
+
+    const effRow = document.createElement('div'); effRow.className = 'chips';
+    (cfg.effects || []).forEach(e => effRow.appendChild(chip(e, () => removeThemeItem(name, 'effects', e))));
+    sec.appendChild(effRow);
+
+    const palRow = document.createElement('div'); palRow.className = 'chips';
+    (cfg.palettes || []).forEach((col, i) => {
+      const c = document.createElement('span'); c.className = 'chip chip-color';
+      c.style.background = `rgb(${col[0]},${col[1]},${col[2]})`;
+      const x = document.createElement('b'); x.className = 'x'; x.textContent = '✕';
+      x.onclick = () => removeThemeItem(name, 'palettes', i);
+      c.appendChild(x); palRow.appendChild(c);
+    });
+    if(!(cfg.palettes || []).length){
+      const m = document.createElement('span'); m.className = 'muted'; m.textContent = 'random colors';
+      palRow.appendChild(m);
+    }
+    sec.appendChild(palRow);
+
+    const addRow = document.createElement('div'); addRow.className = 'chips';
+    const sel = document.createElement('select');
+    sel.innerHTML = '<option value="">+ effect</option>' + ALL_EFFECTS.map(e => `<option>${e}</option>`).join('');
+    sel.onchange = () => { if(sel.value){ addThemeItem(name, 'effects', sel.value); } };
+    const addCol = document.createElement('button'); addCol.className = 'small ghost'; addCol.textContent = '+ color';
+    addCol.onclick = () => addThemeItem(name, 'palette', null);
+    addRow.appendChild(sel); addRow.appendChild(addCol);
+    sec.appendChild(addRow);
+    list.appendChild(sec);
+  });
+}
+async function saveTheme(name){
+  const cfg = THEMES[name];
+  await fetch('/api/party/themes', {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name, effects: cfg.effects || [], palettes: cfg.palettes || []})});
+}
+async function addThemeItem(name, key, value){
+  const cfg = THEMES[name];
+  if(key === 'effects'){ if(!cfg.effects.includes(value)) cfg.effects.push(value); }
+  else if(key === 'palette'){ cfg.palettes = cfg.palettes || []; cfg.palettes.push([Math.floor(Math.random()*256), Math.floor(Math.random()*256), Math.floor(Math.random()*256)]); }
+  await saveTheme(name);
+  renderPartyEditor();
+}
+async function removeThemeItem(name, key, value){
+  const cfg = THEMES[name];
+  if(key === 'effects') cfg.effects = cfg.effects.filter(e => e !== value);
+  else if(key === 'palettes') cfg.palettes = cfg.palettes.filter((_, i) => i !== value);
+  await saveTheme(name);
+  renderPartyEditor();
+}
+async function createTheme(){
+  const name = document.getElementById('newThemeName').value.trim();
+  if(!name) return;
+  THEMES[name] = {effects: ['chase','wave','rainbow','disco','twinkle'], palettes: []};
+  await saveTheme(name);
+  document.getElementById('newThemeName').value = '';
+  renderPartyEditor();
+}
+async function deleteTheme(name){
+  await fetch('/api/party/themes/' + encodeURIComponent(name), {method:'DELETE'});
+  delete THEMES[name];
+  renderPartyEditor();
+}
+async function startTheme(name){
+  await api('/api/party/start', {theme: name});
+  document.getElementById('partyModal').style.display = 'none';
+}
 
 // ---- scheduler ----
 function openSched(){
