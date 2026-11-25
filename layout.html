@@ -13,6 +13,7 @@
   .spacer { flex:1; }
   button { background:linear-gradient(135deg,#3b5bdb,#7048e8); color:#fff; border:0; border-radius:9px; padding:8px 14px; font-size:13px; cursor:pointer; }
   button.off { background:linear-gradient(135deg,#5c6573,#39404d); }
+  button.active { background:linear-gradient(135deg,#e8590c,#f76707); }
   button.small { padding:5px 10px; font-size:12px; }
   .speed { display:flex; align-items:center; gap:6px; font-size:12px; color:#8b95b0; }
   .palette { display:flex; gap:6px; align-items:center; }
@@ -41,7 +42,7 @@
 </div>
 <header>
   <h1>💡 Groove Layout</h1>
-  <span class="hint">drag bulbs to reorder the chain · effects run along it</span>
+  <span class="hint" id="hint">drag bulbs to reorder the chain · effects run along it</span>
   <div class="spacer"></div>
   <select id="effectSel" style="background:#1a2233;color:#e8ecf5;border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:7px 10px;font-size:12px;">
     <option value="chase">🏃 Chase</option>
@@ -61,6 +62,13 @@
     <option value="countdown">⏱️ Countdown</option>
     <option value="sos">🆘 SOS</option>
     <option value="ocean">🐠 Ocean</option>
+    <option value="candycane">🍭 Candy Cane</option>
+    <option value="jacko">🎃 Jack-o-Lantern</option>
+    <option value="fireworks">🎆 Fireworks</option>
+    <option value="disco">🪩 Disco</option>
+    <option value="aurora">🌌 Aurora</option>
+    <option value="sunset">🌅 Sunset</option>
+    <option value="movie">🎬 Movie</option>
   </select>
   <select id="presetSel" onchange="applyPreset(this.value)" style="background:#1a2233;color:#e8ecf5;border:1px solid rgba(255,255,255,.15);border-radius:9px;padding:7px 10px;font-size:12px;">
     <option value="">✨ Presets…</option>
@@ -70,6 +78,8 @@
   <div class="speed">Step <input id="speed" type="range" min="150" max="2000" step="50" value="350" oninput="spdLbl.textContent=this.value+'ms'"> <span id="spdLbl">350ms</span></div>
   <button id="chaseBtn" onclick="toggleEffect()">Start</button>
   <button class="off" onclick="stopChase()">Stop</button>
+  <button class="off" id="linkBtn" onclick="toggleLinkMode()">🔗 Set order</button>
+  <button class="off" onclick="surprise()">🎲 Surprise</button>
 </header>
 
 <div id="yard">
@@ -92,6 +102,7 @@ let chasing = false;
 let chaseTimer = null;
 let chaseIdx = 0, chaseLap = 0;
 let selected = null;
+let linkMode = false, linkSeq = [];
 
 const yard = document.getElementById('yard');
 const panel = document.getElementById('panel');
@@ -118,13 +129,21 @@ function renderBulbs(){
     el.dataset.id = b.id;
     setBulbColor(b, b.color);
     el.addEventListener('pointerdown', e => startDrag(e, b, el));
-    el.addEventListener('click', e => { if(!el.classList.contains('dragging')) select(b); });
+    el.addEventListener('click', e => { if(!el.classList.contains('dragging')){ if(linkMode) linkBulb(b); else select(b); } });
     layer.appendChild(el);
     b.el = el;
   });
   drawLinks();
 }
-function sorted(){ return [...bulbs].sort((a,b)=>a.x-b.x); }
+function sorted(){
+  if(linkSeq.length > 0){
+    const rest = bulbs.filter(b => !linkSeq.includes(b)).sort((a,b)=>a.x-b.x);
+    return [...linkSeq, ...rest];
+  }
+  const arr = [...bulbs];
+  if(arr.every(b => b.order != null)) return arr.sort((a,b)=>a.order-b.order);
+  return arr.sort((a,b)=>a.x-b.x);
+}
 function drawLinks(){
   const svg = document.getElementById('links');
   const order = sorted();
@@ -188,8 +207,43 @@ function updateOrder(){
 }
 async function saveLayout(){
   const obj = {};
-  bulbs.forEach(b => obj[b.id] = {x: Math.round(b.x*1000)/1000, y: Math.round(b.y*1000)/1000});
+  bulbs.forEach(b => obj[b.id] = {x: Math.round(b.x*1000)/1000, y: Math.round(b.y*1000)/1000, order: b.order ?? null});
   await fetch('/api/layout', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(obj)});
+}
+
+// ---- manual link ordering ----
+function toggleLinkMode(){
+  if(linkMode){ finishLinking(); return; }
+  linkMode = true;
+  linkSeq = [];
+  bulbs.forEach(b => b.order = null);
+  const btn = document.getElementById('linkBtn');
+  btn.textContent = '✓ Done';
+  btn.classList.add('active');
+  btn.classList.remove('off');
+  document.getElementById('hint').textContent = 'click bulbs in the order you want them to run';
+  updateOrder();
+}
+function linkBulb(b){
+  if(linkSeq.includes(b)) return;
+  b.order = linkSeq.length + 1;
+  linkSeq.push(b);
+  updateOrder();
+  drawLinks();
+  if(linkSeq.length === bulbs.length) finishLinking();
+}
+function finishLinking(){
+  if(linkSeq.length !== bulbs.length) bulbs.forEach(b => b.order = null);  // partial → revert to x-order
+  linkMode = false;
+  linkSeq = [];
+  const btn = document.getElementById('linkBtn');
+  btn.textContent = '🔗 Set order';
+  btn.classList.remove('active');
+  btn.classList.add('off');
+  document.getElementById('hint').textContent = 'drag bulbs to reorder the chain · effects run along it';
+  updateOrder();
+  drawLinks();
+  saveLayout();
 }
 
 // ---- control ----
@@ -300,6 +354,18 @@ async function applyPreset(name){
   await stopChase();
   await toggleChase();
   document.getElementById('presetSel').value = '';
+}
+
+function surprise(){
+  const effs = ['chase','wave','twinkle','meteor','breathe','fire','strobe','sparkle','heartbeat','lightning','police','rainbow','disco','aurora','candycane','jacko','fireworks','ocean'];
+  document.getElementById('effectSel').value = effs[Math.floor(Math.random()*effs.length)];
+  const n = 3 + Math.floor(Math.random()*5);
+  palette = Array.from({length:n}, () => [Math.floor(Math.random()*256), Math.floor(Math.random()*256), Math.floor(Math.random()*256)]);
+  renderPalette();
+  const step = 200 + Math.floor(Math.random()*5)*100;
+  document.getElementById('speed').value = step;
+  spdLbl.textContent = step + 'ms';
+  stopChase().then(() => toggleEffect());
 }
 
 load();

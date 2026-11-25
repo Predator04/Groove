@@ -13,8 +13,9 @@ the Govee app can't do.
 
 ## Features
 
-- **17 effects**: Chase, Wave, Twinkle, Meteor, Breathe, Fire, Strobe, Gradient,
-  Solid, Sparkle, Heartbeat, Lightning, Police, Rainbow, Countdown, SOS, Ocean
+- **24 effects**: Chase, Wave, Twinkle, Meteor, Breathe, Fire, Strobe, Gradient,
+  Solid, Sparkle, Heartbeat, Lightning, Police, Rainbow, Countdown, SOS, Ocean,
+  Candy Cane, Jack-o-Lantern, Fireworks, Disco, Aurora, Sunset, Movie
 - **Drag & drop layout** — arrange your bulbs on a canvas to match your real
   setup; the chase follows the left-to-right order
 - **Presets** — Christmas, Classic Red/Green, All White, Red White Blue, Candy

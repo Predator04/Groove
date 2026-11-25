@@ -16,7 +16,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 BUILD_DATE = "2026-11-15"
 
 
@@ -314,6 +314,84 @@ def _run_effect(ip_list, effect, colors, step_ms):
             t += 1
             _effect_stop.wait(max(step_ms, 300) / 1000.0)
 
+    elif effect == "candycane":
+        for ip in ip_list: lan_turn(ip, True)
+        off = 0
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                c = [255, 0, 0] if (i + off) % 2 == 0 else [255, 255, 255]
+                lan_color(ip, c)
+            off += 1
+            _effect_stop.wait(max(step_ms, 300) / 1000.0)
+
+    elif effect == "jacko":
+        for ip in ip_list: lan_turn(ip, True)
+        while not _effect_stop.is_set():
+            for ip in ip_list:
+                if random.random() < 0.15:
+                    lan_color(ip, [200, 30, 0]); lan_brightness(ip, random.randint(30, 70))
+                else:
+                    lan_color(ip, [255, 140, 20]); lan_brightness(ip, random.randint(60, 100))
+            _effect_stop.wait(0.12)
+
+    elif effect == "fireworks":
+        for ip in ip_list:
+            lan_turn(ip, True); lan_brightness(ip, 5)
+        burst = colors or [[255, 0, 0], [0, 255, 0], [0, 120, 255], [255, 220, 0], [255, 80, 180], [255, 255, 255]]
+        while not _effect_stop.is_set():
+            i = random.randrange(n)
+            lan_brightness(ip_list[i], 100)
+            _effect_stop.wait(0.15)
+            c = random.choice(burst)
+            lan_color(ip_list[i], c)
+            for k in range(1, min(4, n)):
+                if _effect_stop.is_set(): break
+                for j in range(n):
+                    dist = (j - i) % n
+                    if dist == k:
+                        lan_color(ip_list[j], c); lan_brightness(ip_list[j], 100)
+                    elif dist < k:
+                        lan_color(ip_list[j], c); lan_brightness(ip_list[j], 15)
+                _effect_stop.wait(0.12)
+            for ip in ip_list: lan_brightness(ip, 5)
+            _effect_stop.wait(random.uniform(0.5, 1.5))
+
+    elif effect == "disco":
+        for ip in ip_list: lan_turn(ip, True)
+        while not _effect_stop.is_set():
+            for ip in ip_list:
+                lan_color(ip, _hsv(random.random()))
+            _effect_stop.wait(max(step_ms, 100) / 1000.0)
+
+    elif effect == "aurora":
+        aur = colors or [[0, 200, 120], [0, 160, 180], [80, 60, 180], [40, 200, 140], [120, 80, 200]]
+        for ip in ip_list: lan_turn(ip, True)
+        t = 0
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                lan_color(ip, aur[(i + t) % len(aur)])
+            t += 1
+            _effect_stop.wait(max(step_ms, 500) / 1000.0)
+
+    elif effect == "sunset":
+        steps = [[255, 200, 60], [255, 160, 30], [255, 110, 10], [255, 60, 5], [200, 30, 0], [120, 10, 0]]
+        for ip in ip_list: lan_turn(ip, True)
+        for c in steps:
+            if _effect_stop.is_set(): return
+            for ip in ip_list: lan_color(ip, c)
+            _effect_stop.wait(20)
+        for b in range(90, 0, -10):
+            if _effect_stop.is_set(): return
+            for ip in ip_list: lan_brightness(ip, b)
+            _effect_stop.wait(3)
+        for ip in ip_list: lan_turn(ip, False)
+
+    elif effect == "movie":
+        for ip in ip_list:
+            lan_turn(ip, True); lan_color(ip, [255, 180, 100]); lan_brightness(ip, 15)
+        while not _effect_stop.is_set():
+            _effect_stop.wait(1)
+
     elif effect in ("gradient", "solid"):
         for i, ip in enumerate(ip_list):
             c = colors[i % nc] if effect == "gradient" else colors[0]
@@ -553,8 +631,9 @@ def api_layout_get():
         if x is None or y is None:
             # default: spread in a horizontal chain so bulbs never pile up
             x, y = (i + 0.5) / max(n, 1), 0.5
+        order = pos.get("order")
         bulbs.append({"id": device_id, "name": NAMES.get(device_id, device_id),
-                      "ip": ip, "x": x, "y": y})
+                      "ip": ip, "x": x, "y": y, "order": order})
     return jsonify({"bulbs": bulbs})
 
 
@@ -609,7 +688,8 @@ def api_presets():
 def api_effects():
     return jsonify(["chase", "wave", "twinkle", "meteor", "breathe", "fire", "strobe",
                     "gradient", "solid", "sparkle", "heartbeat", "lightning", "police",
-                    "rainbow", "countdown", "sos", "ocean"])
+                    "rainbow", "countdown", "sos", "ocean", "candycane", "jacko",
+                    "fireworks", "disco", "aurora", "sunset", "movie"])
 
 
 @app.route("/api/scan")
