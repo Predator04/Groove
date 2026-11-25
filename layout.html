@@ -1261,15 +1261,6 @@ async function removeThemeItem(name, key, value){
   await saveTheme(name);
   renderPartyEditor();
 }
-async function createTheme(){
-  const name = document.getElementById('newThemeName').value.trim();
-  if(!name) return;
-  const cols = [...new Set(simBulbs.map(b => b.color ? b.color.join(',') : null).filter(Boolean))].map(c => c.split(',').map(Number));
-  THEMES[name] = {effects: ['chase','wave','rainbow','disco','twinkle'], palettes: cols.length ? [cols] : []};
-  await saveTheme(name);
-  document.getElementById('newThemeName').value = '';
-  renderPartyEditor();
-}
 async function deleteTheme(name){
   await fetch('/api/party/themes/' + encodeURIComponent(name), {method:'DELETE'});
   delete THEMES[name];
