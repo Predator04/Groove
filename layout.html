@@ -684,6 +684,11 @@
         <span class="label"><span class="emoji">🌇</span> Auto: on at sunset · off at sunrise</span>
         <span style="flex:1"></span>
         <input id="zipInput" placeholder="ZIP code">
+        <select id="duskTheme" onchange="saveDuskTheme()">
+          <option value="">Use selected effect</option>
+          <option value="christmas">🎄 Christmas</option>
+          <option value="random">🎉 Random</option>
+        </select>
         <button id="duskBtn" class="small off" onclick="toggleDusk()">Enable</button>
       </div>
       <div id="duskInfo"></div>
@@ -1577,6 +1582,7 @@ async function loadAutomation(){
     btn.textContent = a.enabled ? 'On ✓' : 'Enable';
     btn.className = a.enabled ? 'small' : 'small off';
     document.getElementById('zipInput').value = a.zip || '';
+    document.getElementById('duskTheme').value = a.theme || '';
     const loc = a.city ? `${a.city}, ${a.state || ''}` : (a.lat ? `${a.lat.toFixed(2)}, ${a.lon.toFixed(2)}` : 'set your ZIP code');
     document.getElementById('duskInfo').textContent = loc + (a.sunset ? ` · sunset ${a.sunset} · sunrise ${a.sunrise}` : '');
   }catch(e){}
@@ -1593,9 +1599,15 @@ async function toggleDusk(){
     a.effect = document.getElementById('effectSel').value;
     a.colors = palette;
     a.step_ms = parseInt(document.getElementById('speed').value);
+    a.theme = document.getElementById('duskTheme').value;
   }
   await fetch('/api/automation', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(a)});
   loadAutomation();
+}
+async function saveDuskTheme(){
+  const a = await (await fetch('/api/automation')).json();
+  a.theme = document.getElementById('duskTheme').value;
+  await fetch('/api/automation', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(a)});
 }
 
 // ---- scenes ----

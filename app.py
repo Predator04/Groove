@@ -17,7 +17,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.5.0"
+VERSION = "2.6.0"
 BUILD_DATE = "2026-11-15"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -827,18 +827,24 @@ def _party_loop(theme):
         _party_stop.wait(interval)
 
 
-@app.route("/api/party/start", methods=["POST"])
-def api_party_start():
+def _start_party(theme):
     global _party_thread
-    body = request.get_json(force=True) or {}
-    theme = body.get("theme", "random")
     if not theme or theme not in PARTY_THEMES:
-        return jsonify(error=f"unknown theme: {theme}"), 400
+        theme = "random"
     _party_stop.clear()
     if _party_thread and _party_thread.is_alive():
         _party_thread.join(timeout=1)
     _party_thread = threading.Thread(target=_party_loop, args=(theme,), daemon=True)
     _party_thread.start()
+
+
+@app.route("/api/party/start", methods=["POST"])
+def api_party_start():
+    body = request.get_json(force=True) or {}
+    theme = body.get("theme", "random")
+    if not theme or theme not in PARTY_THEMES:
+        return jsonify(error=f"unknown theme: {theme}"), 400
+    _start_party(theme)
     return jsonify(started=True, theme=theme)
 
 
@@ -1167,6 +1173,7 @@ AUTOMATION = _load_json("automation.json", {
     "lon": -115.1398,
     "on_at_sunset": True,
     "off_at_sunrise": True,
+    "theme": "",
     "effect": "solid",
     "colors": [[255, 200, 120]],
     "step_ms": 400,
@@ -1214,11 +1221,16 @@ def _check_automation():
         _auto_on = True
         ips = _ordered_ips()
         if ips:
-            start_effect(ips, AUTOMATION.get("effect", "chase"),
-                         AUTOMATION.get("colors", [[255, 200, 120]]),
-                         int(AUTOMATION.get("step_ms", 400)))
+            theme = AUTOMATION.get("theme")
+            if theme:
+                _start_party(theme)
+            else:
+                start_effect(ips, AUTOMATION.get("effect", "chase"),
+                             AUTOMATION.get("colors", [[255, 200, 120]]),
+                             int(AUTOMATION.get("step_ms", 400)))
     elif not nighttime and AUTOMATION.get("off_at_sunrise") and _auto_on:
         _auto_on = False
+        _party_stop.set()
         _effect_stop.set()
         for ip in LAN_MAP.values():
             lan_turn(ip, False)
@@ -1236,7 +1248,7 @@ def api_automation():
 def api_automation_set():
     global AUTOMATION
     body = request.get_json(force=True) or {}
-    for k in ("enabled", "lat", "lon", "on_at_sunset", "off_at_sunrise", "effect", "colors", "step_ms", "zip", "city", "state"):
+    for k in ("enabled", "lat", "lon", "on_at_sunset", "off_at_sunrise", "theme", "effect", "colors", "step_ms", "zip", "city", "state"):
         if k in body:
             AUTOMATION[k] = body[k]
     _write_json(os.path.join(BASE_DIR, "automation.json"), AUTOMATION)
