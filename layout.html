@@ -598,6 +598,7 @@
   <button class="off" onclick="surprise()">🎲 Surprise</button>
   <button class="off" onclick="openSched()">⏰ Schedule</button>
   <button class="off" onclick="openScenes()">💾 Scenes</button>
+  <button class="off" onclick="openAdd()">➕ Add</button>
 </header>
 
 <div id="yard">
@@ -655,6 +656,21 @@
       <button onclick="saveScene()">Save current</button>
     </div>
     <div id="sceneList" class="list"></div>
+  </div>
+</div>
+
+<div id="addModal" class="modal">
+  <div class="sheet">
+    <button class="close-x" onclick="document.getElementById('addModal').style.display='none'">✕</button>
+    <h3><span>➕</span> Add a light</h3>
+    <div class="modal-sub">Scan your network for a new Govee bulb, or add one manually by device ID + IP.</div>
+    <button class="small" onclick="scanNew()">🔍 Scan for new lights</button>
+    <div id="addList" class="list" style="margin-top:12px;"></div>
+    <div class="field" style="margin-top:14px;">
+      <input id="addDev" type="text" placeholder="Device ID (e.g. DF:38:…)">
+      <input id="addIp" type="text" placeholder="IP (e.g. 192.168.1.50)" style="width:150px;">
+      <button onclick="addManual()">Add</button>
+    </div>
   </div>
 </div>
 
@@ -747,6 +763,36 @@ async function pollCurrent(){
   }catch(e){}
 }
 setInterval(pollCurrent, 200);
+
+// ---- add / remove lights ----
+function openAdd(){ document.getElementById('addModal').style.display = 'flex'; scanNew(); }
+async function scanNew(){
+  const list = document.getElementById('addList');
+  list.innerHTML = '<div class="empty"><span class="emoji">📡</span>Scanning…</div>';
+  try{
+    const devs = await (await fetch('/api/lan/devices')).json();
+    const known = new Set(Object.keys(devs));
+    const r = await fetch('/api/scan'); const d = await r.json();
+    const fresh = Object.entries(d.found || {}).filter(([dev]) => !known.has(dev));
+    if(!fresh.length){ list.innerHTML = '<div class="empty"><span class="emoji">🔎</span>No new bulbs found.<br>Make sure it's powered on, then add manually below.</div>'; return; }
+    list.innerHTML = '';
+    fresh.forEach(([dev, info]) => {
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `<span class="name">${info.name || dev}</span><code style="font-size:11px;color:var(--ink-dim)">${info.ip}</code><span style="flex:1"></span><button class="small" onclick="addDevice('${dev}','${info.ip}')">Add</button>`;
+      list.appendChild(row);
+    });
+  }catch(e){ list.innerHTML = '<div class="empty"><span class="emoji">🔎</span>Scan failed — add manually below.</div>'; }
+}
+async function addDevice(dev, ip){
+  const r = await fetch('/api/lan/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({device_id:dev, ip})});
+  const d = await r.json();
+  if(d.saved){ document.getElementById('addModal').style.display = 'none'; await load(); }
+  else { alert(d.error || 'Add failed'); }
+}
+function addManual(){
+  addDevice(document.getElementById('addDev').value.trim(), document.getElementById('addIp').value.trim());
+}
 
 // ---- drag ----
 let dragState = null;

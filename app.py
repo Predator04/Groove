@@ -16,7 +16,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "1.7.1"
+VERSION = "1.8.0"
 BUILD_DATE = "2026-11-15"
 
 
@@ -539,6 +539,38 @@ def api_lan_devices():
 @app.route("/api/current")
 def api_current():
     return jsonify(CURRENT)
+
+
+@app.route("/api/lan/add", methods=["POST"])
+def api_lan_add():
+    global LAN_MAP
+    body = request.get_json(force=True) or {}
+    device_id = (body.get("device_id") or "").strip()
+    ip = (body.get("ip") or "").strip()
+    if not device_id or not ip:
+        return jsonify(error="device_id and ip are required"), 400
+    parts = ip.split(".")
+    if len(parts) != 4 or not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
+        return jsonify(error="invalid ipv4"), 400
+    LAN_MAP[device_id] = ip
+    _write_json(os.path.join(os.path.dirname(os.path.abspath(__file__)), "lan_devices.json"), LAN_MAP)
+    try:
+        refresh_names()
+    except Exception:
+        pass
+    return jsonify(saved=True, bulbs=len(LAN_MAP), name=NAMES.get(device_id, device_id))
+
+
+@app.route("/api/lan/remove", methods=["POST"])
+def api_lan_remove():
+    global LAN_MAP
+    body = request.get_json(force=True) or {}
+    device_id = (body.get("device_id") or "").strip()
+    if not device_id:
+        return jsonify(error="device_id is required"), 400
+    LAN_MAP.pop(device_id, None)
+    _write_json(os.path.join(os.path.dirname(os.path.abspath(__file__)), "lan_devices.json"), LAN_MAP)
+    return jsonify(removed=True, bulbs=len(LAN_MAP))
 
 
 @app.route("/api/lan/control", methods=["POST"])
