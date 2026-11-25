@@ -16,7 +16,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "1.7.0"
+VERSION = "1.7.1"
 BUILD_DATE = "2026-11-15"
 
 
@@ -97,6 +97,9 @@ def _load_lan_map():
 
 LAN_MAP = _load_lan_map()
 
+# last-known LAN state per bulb ip — served by /api/current so the dashboard mirrors live colors
+CURRENT = {}
+
 
 def lan_control(ip, cmd, data):
     """Fire-and-forget UDP command to a bulb's LAN API (no ACK, no rate limit)."""
@@ -110,14 +113,18 @@ def lan_control(ip, cmd, data):
 
 
 def lan_color(ip, rgb):
+    s = CURRENT.setdefault(ip, {})
+    s.update({"r": int(rgb[0]), "g": int(rgb[1]), "b": int(rgb[2])})
     lan_control(ip, "colorwc", {"color": {"r": rgb[0], "g": rgb[1], "b": rgb[2]}, "colorTemInKelvin": 0})
 
 
 def lan_turn(ip, on):
+    CURRENT.setdefault(ip, {})["on"] = bool(on)
     lan_control(ip, "turn", {"value": 1 if on else 0})
 
 
 def lan_brightness(ip, pct):
+    CURRENT.setdefault(ip, {})["brightness"] = int(pct)
     lan_control(ip, "brightness", {"value": int(pct)})
 
 
@@ -527,6 +534,11 @@ def api_chase_stop():
 @app.route("/api/lan/devices")
 def api_lan_devices():
     return jsonify(LAN_MAP)
+
+
+@app.route("/api/current")
+def api_current():
+    return jsonify(CURRENT)
 
 
 @app.route("/api/lan/control", methods=["POST"])

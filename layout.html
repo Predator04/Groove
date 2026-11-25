@@ -678,6 +678,7 @@ async function load(){
   bulbs = d.bulbs.map(b => ({...b, el:null, color:[255,200,120]}));
   renderBulbs();
   renderPalette();
+  pollCurrent();
 }
 function renderBulbs(){
   const layer = document.getElementById('bulbsLayer');
@@ -732,6 +733,20 @@ function setBulbColor(b, rgb){
     glow.style.background = css(rgb);
   }
 }
+
+// mirror the live LAN state so each bulb on the canvas shows its real current color
+async function pollCurrent(){
+  try{
+    const r = await fetch('/api/current'); const d = await r.json();
+    for(const b of bulbs){
+      const s = d[b.ip];
+      if(!s) continue;
+      if(s.r != null) setBulbColor(b, [s.r, s.g, s.b]);
+      if('on' in s) b.el.classList.toggle('on', !!s.on);
+    }
+  }catch(e){}
+}
+setInterval(pollCurrent, 600);
 
 // ---- drag ----
 let dragState = null;
