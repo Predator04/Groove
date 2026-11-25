@@ -1,0 +1,10 @@
+# secrets + device info — never commit
+config.json
+lan_devices.json
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
