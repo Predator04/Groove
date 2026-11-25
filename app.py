@@ -123,13 +123,19 @@ _lan_chase_stop = threading.Event()
 
 
 def _run_lan_chase(ip_list, colors, step_ms):
+    """Theater 'chasing lights': one bright bulb runs along the string, cycling
+    through `colors`; the rest stay off (turn-on, next turns off, next...)."""
     n = len(ip_list)
+    for ip in ip_list:
+        lan_turn(ip, False)          # start all-dark
     idx = 0
     while not _lan_chase_stop.is_set():
-        for i, ip in enumerate(ip_list):
-            c = colors[(idx + i) % len(colors)]
-            lan_color(ip, c)
-        idx += 1
+        prev = ip_list[(idx - 1) % n]
+        cur = ip_list[idx]
+        lan_turn(prev, False)
+        lan_color(cur, colors[idx % len(colors)])
+        lan_turn(cur, True)
+        idx = (idx + 1) % n
         _lan_chase_stop.wait(step_ms / 1000.0)
 
 
