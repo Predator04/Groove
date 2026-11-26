@@ -17,8 +17,8 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.15.3"
-BUILD_DATE = "2026-11-15"
+VERSION = "2.16.0"
+BUILD_DATE = "2026-11-25"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
 if getattr(sys, "frozen", False):
@@ -136,6 +136,49 @@ def lan_turn(ip, on):
 def lan_brightness(ip, pct):
     CURRENT.setdefault(ip, {})["brightness"] = int(pct)
     lan_control(ip, "brightness", {"value": int(pct)})
+
+
+# ---- reachability / offline indicator (throttled background probe) ----
+ONLINE = {}  # {ip: bool}
+_online_thread = None
+_online_thread_lock = threading.Lock()
+_ONLINE_INTERVAL = 30  # seconds between full sweeps
+
+
+def _probe_ip(ip):
+    import subprocess
+    import platform as _plat
+    try:
+        if _plat.system() == "Windows":
+            cmd = ["ping", "-n", "1", "-w", "1000", ip]
+        else:
+            cmd = ["ping", "-c", "1", "-W", "1", ip]
+        r = subprocess.run(cmd, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL, timeout=3)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
+def _online_loop():
+    while True:
+        try:
+            ips = list(LAN_MAP.values())
+            for ip in ips:
+                ONLINE[ip] = _probe_ip(ip)
+            for stale in [ip for ip in list(ONLINE.keys()) if ip not in ips]:
+                ONLINE.pop(stale, None)
+        except Exception:
+            pass
+        time.sleep(_ONLINE_INTERVAL)
+
+
+def _ensure_online_thread():
+    global _online_thread
+    with _online_thread_lock:
+        if _online_thread is None or not _online_thread.is_alive():
+            _online_thread = threading.Thread(target=_online_loop, daemon=True)
+            _online_thread.start()
 
 
 def _hsv(h, s=1.0, v=1.0):
@@ -592,7 +635,7 @@ def version():
         version=VERSION,
         commit="n/a",
         build_date=BUILD_DATE,
-        features=["34 effects", "drag-and-drop layout", "party themes", "presets", "scenes", "schedules", "sunset automation", "zero rate limit", "setup wizard", "per-bulb control"],
+        features=["34 effects", "drag-and-drop layout", "party themes", "presets", "scenes", "schedules", "sunset automation", "zero rate limit", "setup wizard", "per-bulb control", "master all on/off", "edit schedules", "offline bulb indicator"],
     )
 
 
@@ -695,6 +738,13 @@ def api_current():
     return jsonify(CURRENT)
 
 
+@app.route("/api/status")
+def api_status():
+    """Reachability map: {ip: bool}. Starts the probe thread lazily on first call."""
+    _ensure_online_thread()
+    return jsonify(online=ONLINE)
+
+
 @app.route("/api/lan/add", methods=["POST"])
 def api_lan_add():
     global LAN_MAP
@@ -763,6 +813,18 @@ def api_lan_control():
     else:
         return jsonify(error=f"unknown cmd name: {name}"), 400
     return jsonify(ok=True)
+
+
+@app.route("/api/lan/all", methods=["POST"])
+def api_lan_all():
+    """Master switch — turn every known bulb on or off."""
+    body = request.get_json(force=True) or {}
+    on = bool(body.get("on"))
+    count = 0
+    for ip in LAN_MAP.values():
+        lan_turn(ip, on)
+        count += 1
+    return jsonify(ok=True, count=count, on=on)
 
 
 EFFECTS = ["chase", "wave", "twinkle", "meteor", "breathe", "fire", "strobe",
@@ -1194,8 +1256,9 @@ def api_schedules():
 @app.route("/api/schedules", methods=["POST"])
 def api_schedules_add():
     body = request.get_json(force=True) or {}
+    given_id = (body.get("id") or "").strip() or None
     sch = {
-        "id": body.get("id") or f"sch{int(time.time()*1000)}",
+        "id": given_id or f"sch{int(time.time()*1000)}",
         "time": body.get("time", ""),
         "days": body.get("days"),
         "effect": body.get("effect", "chase"),
@@ -1206,6 +1269,13 @@ def api_schedules_add():
     }
     if not sch["time"]:
         return jsonify(error="time (HH:MM) is required"), 400
+    if given_id:
+        for i, s in enumerate(SCHEDULES):
+            if s.get("id") == given_id:
+                sch["enabled"] = s.get("enabled", True)
+                SCHEDULES[i] = sch
+                _save_schedules()
+                return jsonify(saved=True, schedule=sch, updated=True)
     SCHEDULES.append(sch)
     _save_schedules()
     return jsonify(saved=True, schedule=sch)

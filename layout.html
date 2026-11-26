@@ -339,6 +339,22 @@
     z-index:-1;
   }
   .bulb.on .glow{ opacity:0.85; animation: glow-pulse 3.2s ease-in-out infinite; }
+  .bulb.offline{ opacity:0.45; filter: grayscale(0.7); }
+  .bulb.offline .core{ border-color: rgba(255,255,255,0.1); }
+  .bulb .warn{
+    position:absolute;
+    bottom:-6px; right:-6px;
+    background: linear-gradient(135deg, #3a2a10, #4a3015);
+    border:1px solid rgba(255,200,80,0.55);
+    border-radius:999px;
+    font-size:10px; line-height:1;
+    min-width:16px; height:16px; padding:0 3px;
+    display:none; align-items:center; justify-content:center;
+    color:#ffcc66;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+    z-index:3;
+  }
+  .bulb.offline .warn{ display:flex; }
   @keyframes glow-pulse {
     0%,100% { opacity:0.6; transform: scale(1); }
     50%     { opacity:0.95; transform: scale(1.15); }
@@ -653,6 +669,7 @@
 
   <button id="chaseBtn" onclick="toggleEffect()" data-tip="Start the selected effect on your lights">Start</button>
   <button class="off" onclick="stopChase()" data-tip="Stop the running effect">Stop</button>
+  <button class="off" id="allOnBtn" onclick="toggleAllPower()" data-tip="Turn every bulb on or off at once">💡 All On/Off</button>
   <button class="off" id="linkBtn" onclick="toggleLinkMode()" data-tip="Tap bulbs in the order effects should travel">🔗 Set order</button>
   <button class="off" onclick="surprise()" data-tip="Pick a random effect and start it">🎲 Surprise</button>
   <button class="off" id="partyBtn" onclick="toggleParty()" data-tip="Start the party mode loop">🎉 Party</button>
@@ -713,7 +730,9 @@
 
     <div class="field">
       <input type="time" id="schedTime">
-      <button onclick="addSchedule()" data-tip="Add this schedule">Add</button>
+      <input id="schedName" type="text" placeholder="Name (optional)" style="font-size:12px;color:var(--ink);background:rgba(255,255,255,0.05);border:1px solid var(--stroke);border-radius:8px;padding:5px 8px;">
+      <button id="schedAddBtn" onclick="addSchedule()" data-tip="Add this schedule">Add</button>
+      <button id="schedCancelBtn" class="small ghost" onclick="cancelEditSchedule()" data-tip="Cancel editing" style="display:none;">Cancel</button>
     </div>
     <div id="schedList" class="list"></div>
   </div>
@@ -875,7 +894,7 @@ function renderBulbs(){
     el.style.left = (b.x*100)+'%';
     el.style.top = (b.y*100)+'%';
     el.setAttribute('data-tip', (b.name || 'Bulb') + ' · ' + (b.ip || ''));
-    el.innerHTML = `<div class="glow"></div><div class="core"><span class="lbl">${esc(b.name)}</span></div><span class="ord">${order.indexOf(b)+1}</span>`;
+    el.innerHTML = `<div class="glow"></div><div class="core"><span class="lbl">${esc(b.name)}</span></div><span class="ord">${order.indexOf(b)+1}</span><span class="warn" title="Offline — not responding on the network">⚠</span>`;
     el.dataset.id = b.id;
     setBulbColor(b, b.color);
     el.addEventListener('pointerdown', e => startDrag(e, b, el));
@@ -934,6 +953,22 @@ async function pollCurrent(){
   }catch(e){}
 }
 setInterval(pollCurrent, 200);
+
+// reachability (offline indicator) — polled less often than live state
+async function pollStatus(){
+  try{
+    const r = await fetch('/api/status'); const d = await r.json();
+    const online = (d && d.online) || {};
+    for(const b of bulbs){
+      if(!b.el) continue;
+      if(Object.prototype.hasOwnProperty.call(online, b.ip)){
+        b.el.classList.toggle('offline', online[b.ip] === false);
+      }
+    }
+  }catch(e){}
+}
+pollStatus();
+setInterval(pollStatus, 15000);
 
 // ---- add / remove lights ----
 function openAdd(){ document.getElementById('addModal').style.display = 'flex'; scanNew(); }
@@ -1069,6 +1104,14 @@ function togglePower(){
   if(!selected) return;
   api('/api/lan/control', {ip:selected.ip, cmd:{name:'turn', value: selected.el.classList.contains('on') ? 0 : 1}});
   selected.el.classList.toggle('on');
+}
+async function toggleAllPower(){
+  const anyOn = bulbs.some(b => b.el && b.el.classList.contains('on'));
+  const target = !anyOn;
+  await api('/api/lan/all', {on: target});
+  bulbs.forEach(b => { if(b.el) b.el.classList.toggle('on', target); });
+  const btn = document.getElementById('allOnBtn');
+  if(btn) btn.textContent = target ? '💡 All Off' : '💡 All On';
 }
 function setBright(v){
   if(!selected) return;
@@ -1826,6 +1869,8 @@ function pickBuiltEffect(){
 }
 
 // ---- scheduler ----
+let editingSchedId = null;
+let _schedCache = [];
 function openSched(){
   document.getElementById('schedModal').style.display = 'flex';
   loadSchedules();
@@ -1834,28 +1879,57 @@ function openSched(){
 async function loadSchedules(){
   try{
     const r = await fetch('/api/schedules'); const list = await r.json();
+    _schedCache = list;
     const el = document.getElementById('schedList');
     el.innerHTML = (list.length ? list.map(s => `
       <div class="row">
-        <span class="name ${s.enabled?'':'off'}">⏱ ${to12(s.time)} · ${esc(s.name || s.effect)}</span>
+        <span class="name ${s.enabled?'':'off'}" style="cursor:pointer;" onclick="editSched('${jsEsc(s.id)}')" data-tip="Click to edit this schedule">⏱ ${to12(s.time)} · ${esc(s.name || s.effect)}</span>
         <span style="flex:1"></span>
-        <button class="small ${s.enabled?'':'off'}" onclick="toggleSched('${s.id}')" data-tip="Turn this schedule on or off">${s.enabled?'on':'off'}</button>
-        <button class="small ghost" onclick="delSched('${s.id}')" data-tip="Delete this schedule">✕</button>
+        <button class="small ghost" onclick="editSched('${jsEsc(s.id)}')" data-tip="Edit this schedule">✏️</button>
+        <button class="small ${s.enabled?'':'off'}" onclick="toggleSched('${jsEsc(s.id)}')" data-tip="Turn this schedule on or off">${s.enabled?'on':'off'}</button>
+        <button class="small ghost" onclick="delSched('${jsEsc(s.id)}')" data-tip="Delete this schedule">✕</button>
       </div>`).join('') : '<div class="empty"><span class="emoji">🌙</span>No schedules yet.<br>Pick a time above, then tap Add.</div>');
   }catch(e){}
   loadUpNext();
+}
+function editSched(id){
+  const s = _schedCache.find(x => x.id === id);
+  if(!s) return;
+  editingSchedId = id;
+  document.getElementById('schedTime').value = s.time || '';
+  const nm = document.getElementById('schedName'); if(nm) nm.value = s.name || '';
+  if(s.effect){ const es = document.getElementById('effectSel'); if(es) es.value = s.effect; }
+  if(Array.isArray(s.colors) && s.colors.length){ palette = s.colors.map(c => [...c]); renderPalette(); }
+  if(s.step_ms){
+    const sp = document.getElementById('speed'); if(sp){ sp.value = s.step_ms; }
+    const lbl = document.getElementById('spdLbl'); if(lbl) lbl.textContent = s.step_ms + 'ms';
+  }
+  document.getElementById('schedAddBtn').textContent = 'Update';
+  document.getElementById('schedCancelBtn').style.display = '';
+}
+function cancelEditSchedule(){
+  editingSchedId = null;
+  document.getElementById('schedTime').value = '';
+  const nm = document.getElementById('schedName'); if(nm) nm.value = '';
+  document.getElementById('schedAddBtn').textContent = 'Add';
+  document.getElementById('schedCancelBtn').style.display = 'none';
 }
 async function addSchedule(){
   const t = document.getElementById('schedTime').value;
   if(!t){ return; }
   const effect = document.getElementById('effectSel').value;
   const step = parseInt(document.getElementById('speed').value);
+  const nameEl = document.getElementById('schedName');
+  const name = nameEl ? (nameEl.value || '').trim() : '';
+  const body = {time:t, effect, colors:palette, step_ms:step, name};
+  if(editingSchedId) body.id = editingSchedId;
   await fetch('/api/schedules', {method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({time:t, effect, colors:palette, step_ms:step})});
-  document.getElementById('schedTime').value = '';
+    body: JSON.stringify(body)});
+  cancelEditSchedule();
   loadSchedules();
 }
 async function delSched(id){
+  if(editingSchedId === id) cancelEditSchedule();
   await fetch('/api/schedules/'+id, {method:'DELETE'});
   loadSchedules();
 }
