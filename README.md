@@ -60,10 +60,22 @@ python app.py
 
 ---
 
+## 🔑 Get your Govee API key (free, ~2 minutes)
+
+Groove uses your Govee API key to pull friendly bulb names and enable cloud control. Without it you can still drive bulbs by IP, but names won't auto-populate — so grab the key first.
+
+1. Open the **Govee Home app** on your phone.
+2. Tap your **profile icon** (bottom-right) → **settings gear** (top-right).
+3. Tap **"Apply for API Key"**.
+4. Fill in the form — name + reason ("home automation" is fine) — and **submit**.
+5. Govee emails you the key. Copy it.
+
+📖 Official walkthrough: [Apply your Govee API key](https://developer.govee.com/reference/apply-you-govee-api-key)
+
 ## 🛠 Setup (under a minute)
 
 1. Open **/setup**.
-2. **API key** *(optional)* — paste your Govee API key from [developer.govee.com](https://developer.govee.com) to fetch bulb names automatically. Skip this if you'll add bulbs by IP.
+2. Paste your **Govee API key** (from the step above).
 3. In the Govee Home app, open each bulb → ⚙️ → **LAN Control** → on.
 4. Tap **Scan** to discover bulbs on your network, or add them manually.
 5. Tap **Save & open dashboard**.
