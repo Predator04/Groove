@@ -17,7 +17,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.16.0"
+VERSION = "2.16.1"
 BUILD_DATE = "2026-11-25"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -1017,7 +1017,9 @@ def refresh_names():
     try:
         data = list_devices()
         for d in ((data.get("data") or {}).get("devices") or []):
-            NAMES[d["device"]] = d["deviceName"]
+            dev = d.get("device"); name = d.get("deviceName")
+            if dev and name and dev not in NAMES:
+                NAMES[dev] = name
         with open(os.path.join(BASE_DIR, "names.json"), "w") as f:
             json.dump(NAMES, f, indent=2)
     except Exception:
@@ -1124,6 +1126,7 @@ def api_effects():
 @app.route("/api/scan")
 def api_scan():
     """LAN discovery: multicast/broadcast scan for Govee bulbs (UDP 4001 -> 4002)."""
+    refresh_names()  # pull friendly names from Govee cloud so new bulbs show real names
     found = {}
     scan = json.dumps({"msg": {"cmd": "scan", "data": {"account_topic": "reserve"}}}).encode()
     try:
