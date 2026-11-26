@@ -310,7 +310,7 @@
     font-size:8px; font-weight:600;
     color: rgba(255,255,255,0.72);
     letter-spacing:0.02em;
-    max-width:30px;
+    max-width:64px;
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     text-shadow: 0 1px 2px rgba(0,0,0,0.6);
     position:relative; z-index:1;
@@ -461,6 +461,10 @@
   .sim-ord{ position:absolute; top:-14px; left:50%; transform:translateX(-50%); font-size:10px; font-weight:700; color:#fff; background:rgba(107,140,255,0.95); border-radius:50%; width:18px; height:18px; display:none; align-items:center; justify-content:center; pointer-events:none; }
   .tipbox{ position:fixed; z-index:9999; max-width:280px; padding:9px 12px; border-radius:12px; background:rgba(16,20,34,0.96); border:1px solid var(--stroke); color:#e8ecf5; font-size:12.5px; line-height:1.45; box-shadow:0 12px 32px rgba(0,0,0,0.5); pointer-events:none; opacity:0; transform:translateY(4px); transition:opacity .15s, transform .15s; backdrop-filter:blur(10px); }
   .tipbox.show{ opacity:1; transform:translateY(0); }
+  .ctx{ position:fixed; z-index:9998; background:rgba(16,20,34,0.97); border:1px solid var(--stroke); border-radius:10px; padding:4px; min-width:150px; box-shadow:0 12px 32px rgba(0,0,0,0.55); backdrop-filter:blur(10px); }
+  .ctx div{ padding:8px 12px; border-radius:7px; font-size:13px; color:var(--ink); cursor:pointer; white-space:nowrap; }
+  .ctx div:hover{ background:rgba(255,255,255,0.08); }
+  .ctx div.danger{ color:var(--danger); }
   #simLinks line{ stroke:#6b8cff; stroke-width:0.35; stroke-linecap:round; stroke-dasharray:1.2 1.6; filter:drop-shadow(0 0 1.5px rgba(107,140,255,0.6)); }
   .sim-palette{ display:flex; flex-wrap:wrap; gap:7px; padding:4px 2px; margin-bottom:8px; }
   .sim-swatch{ width:30px; height:30px; border-radius:50%; cursor:grab; border:2px solid rgba(255,255,255,0.45); box-shadow:0 0 6px rgba(0,0,0,0.4); }
@@ -677,7 +681,7 @@
   <input type="color" id="cpicker" oninput="setColor(this.value)">
   <button class="small" onclick="togglePower()" data-tip="Turn all lights on or off">On/Off</button>
   <input type="range" id="bright" min="1" max="100" value="100" oninput="setBright(this.value)">
-  <input id="pname" type="text" placeholder="Name" onchange="renameSelected(this.value)" style="font-size:12px;color:var(--ink);background:rgba(255,255,255,0.05);border:1px solid var(--stroke);border-radius:8px;padding:5px 8px;width:110px;">
+  <input id="pname" type="text" placeholder="Name" onchange="renameSelected(this.value)" style="font-size:12px;color:var(--ink);background:rgba(255,255,255,0.05);border:1px solid var(--stroke);border-radius:8px;padding:5px 8px;width:200px;">
   <button class="small ghost" onclick="document.getElementById('panel').style.display='none'" data-tip="Close">✕</button>
 </div>
 
@@ -870,11 +874,13 @@ function renderBulbs(){
     el.className = 'bulb';
     el.style.left = (b.x*100)+'%';
     el.style.top = (b.y*100)+'%';
+    el.setAttribute('data-tip', (b.name || 'Bulb') + ' · ' + (b.ip || ''));
     el.innerHTML = `<div class="glow"></div><div class="core"><span class="lbl">${esc(b.name)}</span></div><span class="ord">${order.indexOf(b)+1}</span>`;
     el.dataset.id = b.id;
     setBulbColor(b, b.color);
     el.addEventListener('pointerdown', e => startDrag(e, b, el));
     el.addEventListener('click', e => { if(!el.classList.contains('dragging')){ if(linkMode) linkBulb(b); else select(b); } });
+    el.addEventListener('contextmenu', e => showCtx(e, b));
     layer.appendChild(el);
     b.el = el;
   });
@@ -1076,6 +1082,36 @@ async function renameSelected(name){
   await api('/api/lan/rename', {device_id: selected.id, name});
   renderBulbs();
 }
+
+// ---- right-click context menu ----
+const ctxMenu = document.createElement('div');
+ctxMenu.className = 'ctx';
+ctxMenu.id = 'ctxMenu';
+ctxMenu.style.display = 'none';
+document.body.appendChild(ctxMenu);
+let ctxBulb = null;
+function showCtx(e, b){
+  e.preventDefault(); e.stopPropagation();
+  ctxBulb = b; select(b);
+  ctxMenu.innerHTML = '';
+  [
+    ['💡 On/Off', () => togglePower(), false],
+    ['✏️ Rename', () => { const n = prompt('New name:', b.name); if(n && n.trim()) renameSelected(n.trim()); }, false],
+    ['🗑 Delete', async () => { if(confirm('Remove ' + b.name + ' from Groove?')){ await api('/api/lan/remove', {device_id: b.id}); await load(); } }, true],
+  ].forEach(([label, fn, danger]) => {
+    const it = document.createElement('div');
+    it.textContent = label;
+    if(danger) it.classList.add('danger');
+    it.addEventListener('click', () => { hideCtx(); fn(); });
+    ctxMenu.appendChild(it);
+  });
+  ctxMenu.style.display = 'block';
+  ctxMenu.style.left = Math.min(e.clientX, window.innerWidth - 160) + 'px';
+  ctxMenu.style.top = Math.min(e.clientY, window.innerHeight - 130) + 'px';
+}
+function hideCtx(){ ctxMenu.style.display = 'none'; }
+document.addEventListener('click', hideCtx);
+document.addEventListener('contextmenu', e => { if(!e.target.closest('.bulb')) hideCtx(); });
 
 // ---- palette ----
 function renderPalette(){
