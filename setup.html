@@ -242,6 +242,11 @@
     button{ min-height:46px; padding:12px 18px; }
     input[type=text]{ padding:14px; }
   }
+.scan-progress{ width:100%; margin:12px 0 4px; }
+.scan-bar{ width:100%; height:8px; background:rgba(255,255,255,0.08); border-radius:6px; overflow:hidden; }
+.scan-fill{ height:100%; width:40%; border-radius:6px; background:linear-gradient(90deg,#6b8cff,#b86bff,#2ad3b9); animation:scanSlide 1.1s ease-in-out infinite; }
+.scan-label{ font-size:12px; color:#9aa3b8; margin-top:7px; text-align:center; }
+@keyframes scanSlide{ 0%{ margin-left:-45%; } 100%{ margin-left:105%; } }
 </style>
 </head>
 <body>
@@ -281,7 +286,7 @@
 <script>
 let found = {};
 async function scan(){
-  document.getElementById('found').innerHTML = '<span class="ok">Scanning your network…</span>';
+  document.getElementById('found').innerHTML = '<div class="scan-progress"><div class="scan-bar"><div class="scan-fill"></div></div><div class="scan-label">Scanning your network for bulbs…</div></div>';
   const btn = document.getElementById('scanBtn');
   btn.disabled = true; btn.textContent = 'Scanning…';
   try{
