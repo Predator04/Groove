@@ -566,6 +566,16 @@
     line-height:1.6;
   }
   .empty .emoji{ font-size:24px; display:block; margin-bottom:8px; opacity:0.6; }
+  .empty-onboard{
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    text-align:center; color:var(--ink-dim); max-width:470px;
+    background:rgba(10,14,28,0.78); border:1px solid var(--stroke);
+    border-radius:16px; padding:26px 30px; backdrop-filter:blur(8px);
+  }
+  .empty-onboard h3{ margin:10px 0 6px; color:var(--ink); font-weight:600; }
+  .empty-onboard p{ margin:0; font-size:13.5px; line-height:1.6; color:var(--ink-dim); }
+  .empty-onboard .emoji{ font-size:36px; display:block; opacity:0.85; }
+  .empty-onboard b{ color:var(--ink); }
 
   /* update banner */
   #updateBanner{
@@ -940,6 +950,11 @@ async function load(){
 function renderBulbs(){
   const layer = document.getElementById('bulbsLayer');
   layer.innerHTML = '';
+  if(bulbs.length === 0){
+    layer.innerHTML = '<div class="empty-onboard"><span class="emoji">💡</span><h3>No lights found yet</h3><p>In the <b>Govee Home app</b>: open each bulb → <b>⚙️ (top-right)</b> → scroll down → <b>LAN Control</b> → <b>enable</b>.<br>Then tap <b>➕ Add → 🔍 Scan</b> here.</p></div>';
+    drawLinks();
+    return;
+  }
   const order = sorted();
   bulbs.forEach((b, i) => {
     const el = document.createElement('div');
