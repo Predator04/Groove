@@ -650,6 +650,7 @@
     <option value="drip">🖌 Color Drip</option>
     <option value="marquee">🎪 Marquee</option>
     <option value="snake">🐍 Snake</option>
+    <option value="snakegrow">🐍 Snake Grow</option>
     <option value="thunderstorm">⛈ Thunderstorm</option>
     <option value="plasma">🌊 Plasma</option>
   </select>
@@ -1794,7 +1795,7 @@ function renderSim(t){
       case 'strobe': case 'disco': c = (Math.floor(t*8)%2===0) ? col[i%col.length] : '#111'; break;
       case 'twinkle': case 'sparkle': case 'fireflies': case 'confetti': case 'fireworks':
         c = (Math.random() < 0.25) ? col[i%col.length] : '#222'; break;
-      case 'chase': case 'comet': case 'larson': case 'snake': case 'marquee': case 'meteor': {
+      case 'chase': case 'comet': case 'larson': case 'snake': case 'snakegrow': case 'marquee': case 'meteor': {
         const head = Math.floor(t*6) % n;
         const d = Math.min(Math.abs(i-head), n-Math.abs(i-head));
         c = shade(col[i%col.length], Math.max(0, 1-d*0.35)); break;

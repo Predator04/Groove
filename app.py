@@ -18,7 +18,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.16.3"
+VERSION = "2.16.4"
 BUILD_DATE = "2026-11-25"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -574,6 +574,26 @@ def _run_effect(ip_list, effect, colors, step_ms):
                 direction *= -1
             _effect_stop.wait(max(step_ms, 120) / 1000.0)
 
+    elif effect == "snakegrow":
+        for ip in ip_list: lan_turn(ip, True); lan_brightness(ip, 4)
+        idx = 0
+        length = 1
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                dist = (idx - i) % n
+                if dist < length:
+                    lan_color(ip, colors[dist % nc])
+                    lan_brightness(ip, max(8, int(100 * (1.0 - dist / max(length, 1) * 0.85))))
+                else:
+                    lan_brightness(ip, 4)
+            idx += 1
+            if idx >= n:
+                idx = 0
+                length = 1
+            else:
+                length = idx + 1
+            _effect_stop.wait(max(step_ms, 120) / 1000.0)
+
     elif effect == "thunderstorm":
         base = (colors or [[20, 40, 90]])[0]
         for ip in ip_list: lan_turn(ip, True); lan_color(ip, base); lan_brightness(ip, 20)
@@ -837,7 +857,7 @@ EFFECTS = ["chase", "wave", "twinkle", "meteor", "breathe", "fire", "strobe",
           "rainbow", "countdown", "sos", "ocean", "candycane", "jacko",
           "fireworks", "disco", "aurora", "sunset", "movie",
           "pendulum", "larson", "confetti", "fireflies", "comet", "drip",
-          "marquee", "snake", "thunderstorm", "plasma"]
+          "marquee", "snake", "snakegrow", "thunderstorm", "plasma"]
 
 
 def start_effect(ips, effect, colors, step_ms):
