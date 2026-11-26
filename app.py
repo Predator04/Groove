@@ -18,7 +18,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.16.2"
+VERSION = "2.16.3"
 BUILD_DATE = "2026-11-25"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -149,13 +149,17 @@ _ONLINE_INTERVAL = 30  # seconds between full sweeps
 def _probe_ip(ip):
     import subprocess
     import platform as _plat
+    # CREATE_NO_WINDOW keeps the Windows ping from flashing a console window
+    # on every sweep (it is absent on POSIX, hence getattr).
+    no_win = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
         if _plat.system() == "Windows":
             cmd = ["ping", "-n", "1", "-w", "1000", ip]
         else:
             cmd = ["ping", "-c", "1", "-W", "1", ip]
         r = subprocess.run(cmd, stdout=subprocess.DEVNULL,
-                           stderr=subprocess.DEVNULL, timeout=3)
+                           stderr=subprocess.DEVNULL, timeout=3,
+                           creationflags=no_win)
         return r.returncode == 0
     except Exception:
         return False
@@ -1193,12 +1197,26 @@ def api_setup():
 
 # ---- scheduler (run an effect at a set time) ----
 def _name_key(device_id):
-    """Natural sort key from the bulb's friendly name: ('giant led bulb ', 7) -> numeric-aware."""
+    """Order key: 'Giant LED Bulb N' first (numeric), then named zones by their physical walk order."""
     name = NAMES.get(device_id, device_id)
-    m = re.search(r"(\d+)\s*$", name)
+    n = name.strip().lower()
+    # "giant led bulb N" -> group 0, numeric N
+    m = re.search(r"giant\s+led\s+bulb\s+(\d+)", n)
     if m:
-        return (name[:m.start()].strip().lower(), int(m.group(1)))
-    return (name.strip().lower(), 0)
+        return (0, int(m.group(1)), n)
+    # named zones in explicit walk order (garage right -> garage left -> front door)
+    if "garage" in n and "right" in n:
+        return (1, 0, n)
+    if "garage" in n and "left" in n:
+        return (1, 1, n)
+    if "front" in n:
+        return (1, 2, n)
+    # any other trailing number -> group 2, numeric
+    m = re.search(r"(\d+)\s*$", n)
+    if m:
+        return (2, int(m.group(1)), n)
+    # no number -> group 3, alphabetical
+    return (3, 0, n)
 
 
 def _ordered_ips():
