@@ -1,7 +1,7 @@
 import socket, json, time, sys
 sys.stdout.reconfigure(errors='replace')
 
-IP = "192.168.1.35"
+IP = "192.168.1.50"  # <-- your bulb's LAN IP here
 PORT = 4003
 
 def fire(cmd, data):
