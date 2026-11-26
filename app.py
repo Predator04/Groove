@@ -12,13 +12,14 @@ import socket
 import random
 import traceback
 import threading
+import collections
 import requests
-from flask import Flask, jsonify, request, render_template_string
+from flask import Flask, jsonify, request, session, render_template_string
 
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.17.1"
+VERSION = "2.18.0"
 BUILD_DATE = "2026-11-25"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -66,6 +67,87 @@ def e500(e): return jsonify(error="internal server error"), 500
 def eany(e):
     traceback.print_exc()
     return jsonify(error="server error"), 500
+
+
+# ---- PIN gate (optional: set a PIN to protect the app on your LAN) ----
+app.secret_key = os.environ.get("GROOVE_SECRET", "groove-lan-controller")
+
+
+def _pin_path():
+    return os.path.join(BASE_DIR, "pin.txt")
+
+
+def _load_pin():
+    try:
+        with open(_pin_path(), encoding="utf-8") as f:
+            return f.read().strip()
+    except Exception:
+        return ""
+
+
+def _save_pin(pin):
+    try:
+        with open(_pin_path(), "w", encoding="utf-8") as f:
+            f.write(pin)
+    except Exception:
+        pass
+
+
+PIN = _load_pin()
+
+
+@app.before_request
+def _auth_gate():
+    if not PIN or session.get("authed"):
+        return None
+    pub = ("/api/auth/status", "/api/auth/login", "/version", "/ping", "/layout", "/setup", "/")
+    if request.path in pub or request.path.startswith("/assets") or request.path.startswith("/static"):
+        return None
+    return jsonify(error="PIN required"), 401
+
+
+@app.route("/api/auth/status")
+def api_auth_status():
+    return jsonify(pin_set=bool(PIN), authed=bool(session.get("authed")))
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def api_auth_login():
+    body = request.get_json(force=True) or {}
+    pin = str(body.get("pin", "")).strip()
+    if not PIN or pin == PIN:
+        session["authed"] = True
+        _log("auth: unlocked")
+        return jsonify(ok=True)
+    return jsonify(error="wrong PIN"), 401
+
+
+@app.route("/api/auth/set", methods=["POST"])
+def api_auth_set():
+    global PIN
+    if PIN and not session.get("authed"):
+        return jsonify(error="PIN required"), 401
+    body = request.get_json(force=True) or {}
+    pin = str(body.get("pin", "")).strip()
+    if not pin:
+        return jsonify(error="PIN cannot be empty"), 400
+    PIN = pin
+    _save_pin(pin)
+    session["authed"] = True
+    _log("auth: PIN set")
+    return jsonify(ok=True)
+
+
+@app.route("/api/auth/clear", methods=["POST"])
+def api_auth_clear():
+    global PIN
+    if PIN and not session.get("authed"):
+        return jsonify(error="PIN required"), 401
+    PIN = ""
+    _save_pin("")
+    session["authed"] = True
+    _log("auth: PIN cleared")
+    return jsonify(ok=True)
 
 
 # ---- Govee API client ----
@@ -877,6 +959,7 @@ def api_lan_add():
     if len(parts) != 4 or not all(p.isdigit() and 0 <= int(p) <= 255 for p in parts):
         return jsonify(error="invalid ipv4"), 400
     LAN_MAP[device_id] = ip
+    _log(f"bulb add: {device_id} ({ip})")
     _write_json(os.path.join(BASE_DIR, "lan_devices.json"), LAN_MAP)
     try:
         refresh_names()
@@ -981,6 +1064,7 @@ def api_effect_start():
     if not isinstance(colors, list) or not colors:
         return jsonify(error="colors must be a non-empty list"), 400
     _party_stop.set()  # a manual effect takes over from the party loop
+    _log(f"effect start: {effect} ({len(ips)} bulbs)")
     start_effect(ips, effect, colors, step_ms)
     return jsonify(started=True, effect=effect, ips=len(ips), step_ms=step_ms)
 
@@ -988,6 +1072,7 @@ def api_effect_start():
 @app.route("/api/effect/stop", methods=["POST"])
 def api_effect_stop():
     _effect_stop.set()
+    _log("effect stop")
     return jsonify(stopped=True)
 
 
@@ -1080,6 +1165,7 @@ def api_party_start():
     if not theme or theme not in PARTY_THEMES:
         return jsonify(error=f"unknown theme: {theme}"), 400
     _effect_stop.set()  # a manual party takes over from the running effect
+    _log(f"party start: {theme}")
     _start_party(theme)
     return jsonify(started=True, theme=theme)
 
@@ -1088,6 +1174,7 @@ def api_party_start():
 def api_party_stop():
     _party_stop.set()
     _effect_stop.set()
+    _log("party stop")
     return jsonify(stopped=True)
 
 
@@ -1278,17 +1365,15 @@ def api_effects():
     return jsonify(EFFECTS)
 
 
-@app.route("/api/scan")
-def api_scan():
-    """LAN discovery: multicast/broadcast scan for Govee bulbs (UDP 4001 -> 4002)."""
-    refresh_names()  # pull friendly names from Govee cloud so new bulbs show real names
+def _lan_scan(timeout=1.2, passes=3):
+    """UDP broadcast scan for Govee bulbs. Returns {device_id: ip}."""
     found = {}
     scan = json.dumps({"msg": {"cmd": "scan", "data": {"account_topic": "reserve"}}}).encode()
     try:
         rx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         rx.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         rx.bind(("0.0.0.0", 4002))
-        rx.settimeout(1)
+        rx.settimeout(timeout)
         tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         tx.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         try:
@@ -1296,7 +1381,7 @@ def api_scan():
             tx.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         except Exception:
             pass
-        for _ in range(4):
+        for _ in range(passes):
             tx.sendto(scan, ("239.255.255.250", 4001))
             tx.sendto(scan, ("255.255.255.255", 4001))
             while True:
@@ -1306,16 +1391,43 @@ def api_scan():
                     break
                 try:
                     j = json.loads(data)
-                    d = j["msg"]["data"]
-                    dev = d.get("device")
+                    dev = j["msg"]["data"].get("device")
                     if dev:
-                        found[dev] = {"ip": addr[0], "sku": d.get("sku"), "name": NAMES.get(dev, dev)}
+                        found[dev] = addr[0]
                 except Exception:
                     continue
         tx.close(); rx.close()
-    except Exception as e:
-        return jsonify({"found": found, "error": str(e)})
-    return jsonify({"found": found, "count": len(found)})
+    except Exception:
+        pass
+    return found
+
+
+def _rediscover_loop():
+    """Periodically re-scan and update bulb IPs when DHCP reassigns them."""
+    global LAN_MAP
+    while True:
+        time.sleep(15 * 60)
+        try:
+            found = _lan_scan()
+            changed = False
+            for dev, ip in found.items():
+                if dev in LAN_MAP and LAN_MAP[dev] != ip:
+                    _log(f"bulb IP changed: {NAMES.get(dev, dev)} {LAN_MAP[dev]} -> {ip}")
+                    LAN_MAP[dev] = ip
+                    changed = True
+            if changed:
+                _write_json(os.path.join(BASE_DIR, "lan_devices.json"), LAN_MAP)
+        except Exception:
+            pass
+
+
+@app.route("/api/scan")
+def api_scan():
+    """LAN discovery: multicast/broadcast scan for Govee bulbs (UDP 4001 -> 4002)."""
+    refresh_names()  # pull friendly names from Govee cloud so new bulbs show real names
+    found = _lan_scan()
+    out = {dev: {"ip": ip, "name": NAMES.get(dev, dev)} for dev, ip in found.items()}
+    return jsonify({"found": out, "count": len(out)})
 
 
 @app.route("/api/setup", methods=["POST"])
@@ -1536,6 +1648,7 @@ def _check_automation():
     nighttime = (cur >= ss) or (cur < sr)
     if nighttime and AUTOMATION.get("on_at_sunset") and not _auto_on:
         _auto_on = True
+        _log("automation: sunset — turning on")
         ips = _ordered_ips()
         if ips:
             theme = AUTOMATION.get("theme")
@@ -1547,6 +1660,7 @@ def _check_automation():
                              int(AUTOMATION.get("step_ms", 400)))
     elif not nighttime and AUTOMATION.get("off_at_sunrise") and _auto_on:
         _auto_on = False
+        _log("automation: sunrise — turning off")
         _party_stop.set()
         _effect_stop.set()
         for ip in LAN_MAP.values():
@@ -1858,12 +1972,40 @@ def _serve(port):
     app.run(host="0.0.0.0", port=port, debug=False)
 
 
+LOG_BUFFER = collections.deque(maxlen=400)
+_log_lock = threading.Lock()
+
+
 def _log(msg):
-    try:
-        with open(os.path.join(BASE_DIR, "groove.log"), "a") as f:
-            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}\n")
-    except Exception:
-        pass
+    line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}"
+    with _log_lock:
+        LOG_BUFFER.append(line)
+        try:
+            p = os.path.join(BASE_DIR, "groove.log")
+            if os.path.exists(p) and os.path.getsize(p) > 500_000:
+                with open(p, "w") as f:  # reset when it grows large
+                    f.write("")
+            with open(p, "a") as f:
+                f.write(line + "\n")
+        except Exception:
+            pass
+
+
+@app.route("/api/logs")
+def api_logs():
+    with _log_lock:
+        return jsonify(logs=list(LOG_BUFFER))
+
+
+@app.route("/api/logs/clear", methods=["POST"])
+def api_logs_clear():
+    with _log_lock:
+        LOG_BUFFER.clear()
+        try:
+            open(os.path.join(BASE_DIR, "groove.log"), "w").close()
+        except Exception:
+            pass
+    return jsonify(cleared=True)
 
 
 def _run_tray(port):
@@ -1894,6 +2036,7 @@ if __name__ == "__main__":
             _port = _find_free_port()
         _log(f"starting on port {_port}")
         threading.Thread(target=_scheduler_loop, daemon=True).start()
+        threading.Thread(target=_rediscover_loop, daemon=True).start()
         threading.Thread(target=_serve, args=(_port,), daemon=True).start()
         threading.Timer(1.5, lambda: _open_browser(f"http://localhost:{_port}/layout")).start()
         try:

@@ -692,6 +692,8 @@
   </select>
   <button class="off" onclick="openPartyEditor()" data-tip="Edit or create your own party themes">🎛 Party setup</button>
   <button class="off" onclick="openSched()" data-tip="Set times for lights to turn on and off">⏰ Schedule</button>
+  <button class="off" onclick="openLogs()" data-tip="See what Groove has been doing">🔍 Logs</button>
+  <button class="off" onclick="openPin()" data-tip="Set a PIN to lock the app">🔒 PIN</button>
   <button class="off" onclick="openScenes()" data-tip="Save and recall lighting scenes">💾 Scenes</button>
   <button class="off" onclick="openAdd()" data-tip="Add a bulb by its IP address">➕ Add</button>
   <button class="off" onclick="openHelp()" data-tip="How to use Groove">❓ Help</button>
@@ -770,6 +772,26 @@
   </div>
 </div>
 
+<div id="pinGate" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(6,9,18,0.97);flex-direction:column;align-items:center;justify-content:center;gap:14px;">
+  <div style="font-size:42px;">🔒</div>
+  <h2 style="color:var(--ink);margin:0;font-weight:600;">Enter your PIN</h2>
+  <input id="pinInput" type="password" inputmode="numeric" maxlength="8" placeholder="••••" autocomplete="off" onkeydown="if(event.key==='Enter')unlockPin()" style="font-size:22px;text-align:center;letter-spacing:8px;width:150px;padding:10px;background:rgba(255,255,255,0.06);border:1px solid var(--stroke);border-radius:10px;color:var(--ink);">
+  <button onclick="unlockPin()" style="padding:11px 32px;">Unlock</button>
+  <div id="pinErr" style="color:var(--danger);min-height:18px;"></div>
+</div>
+<div id="pinModal" class="modal">
+  <div class="sheet">
+    <button class="close-x" onclick="document.getElementById('pinModal').style.display='none'" data-tip="Close">✕</button>
+    <h3><span>🔒</span> PIN protection</h3>
+    <div class="modal-sub">Lock the app behind a PIN so only you can control your lights on your WiFi.</div>
+    <div id="pinStatus" style="margin:10px 0;color:var(--ink);"></div>
+    <div class="field">
+      <input id="setPinInput" type="password" inputmode="numeric" maxlength="8" placeholder="4–8 digit PIN" autocomplete="off">
+      <button onclick="setPin()">Set PIN</button>
+    </div>
+    <button id="clearPinBtn" class="small ghost" onclick="clearPin()" style="display:none;margin-top:8px;">Remove PIN</button>
+  </div>
+</div>
 <div id="addModal" class="modal">
   <div class="sheet">
     <button class="close-x" onclick="document.getElementById('addModal').style.display='none'" data-tip="Close">✕</button>
@@ -785,6 +807,18 @@
   </div>
 </div>
 
+<div id="logsModal" class="modal">
+  <div class="sheet">
+    <button class="close-x" onclick="document.getElementById('logsModal').style.display='none'" data-tip="Close">✕</button>
+    <h3><span>🔍</span> Activity log</h3>
+    <div class="modal-sub">What Groove has been doing — effects, parties, bulbs, automation.</div>
+    <div style="display:flex;gap:8px;margin:10px 0;">
+      <button class="small" onclick="refreshLogs()" data-tip="Reload the log">Refresh</button>
+      <button class="small ghost" onclick="clearLogs()" data-tip="Clear the log">Clear</button>
+    </div>
+    <pre id="logsBox" style="max-height:50vh;overflow:auto;background:rgba(0,0,0,0.35);border:1px solid var(--stroke);border-radius:10px;padding:12px;font-size:12px;font-family:ui-monospace,monospace;white-space:pre-wrap;color:var(--ink);">Loading…</pre>
+  </div>
+</div>
 <div id="helpModal" class="modal">
   <div class="sheet">
     <button class="close-x" onclick="document.getElementById('helpModal').style.display='none'" data-tip="Close">✕</button>
@@ -1008,6 +1042,52 @@ setInterval(pollStatus, 15000);
 // ---- add / remove lights ----
 function openAdd(){ document.getElementById('addModal').style.display = 'flex'; scanNew(); }
 function openHelp(){ document.getElementById('helpModal').style.display = 'flex'; }
+function openLogs(){ document.getElementById('logsModal').style.display = 'flex'; refreshLogs(); }
+async function refreshLogs(){
+  const box = document.getElementById('logsBox');
+  try {
+    const r = await fetch('/api/logs'); const d = await r.json();
+    const logs = d.logs || [];
+    box.textContent = logs.length ? logs.slice(-200).join('\n') : 'No activity yet.';
+  } catch(e){ box.textContent = 'Could not load logs: ' + e; }
+}
+async function clearLogs(){
+  try { await api('/api/logs/clear', {}); refreshLogs(); } catch(e){}
+}
+async function checkAuth(){
+  try {
+    const r = await fetch('/api/auth/status'); const d = await r.json();
+    const gate = document.getElementById('pinGate');
+    if(gate) gate.style.display = (d.pin_set && !d.authed) ? 'flex' : 'none';
+  } catch(e){}
+}
+async function unlockPin(){
+  const pin = document.getElementById('pinInput').value;
+  const r = await fetch('/api/auth/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pin})});
+  const d = await r.json();
+  if(d.ok){ location.reload(); } else { document.getElementById('pinErr').textContent = 'Wrong PIN — try again'; }
+}
+function openPin(){ document.getElementById('pinModal').style.display='flex'; refreshPinStatus(); }
+async function refreshPinStatus(){
+  try {
+    const r = await fetch('/api/auth/status'); const d = await r.json();
+    document.getElementById('pinStatus').textContent = d.pin_set ? '✅ PIN is set — the app is locked.' : '⚠️ No PIN — anyone on your WiFi can control your lights.';
+    document.getElementById('clearPinBtn').style.display = d.pin_set ? '' : 'none';
+  } catch(e){}
+}
+async function setPin(){
+  const pin = document.getElementById('setPinInput').value.trim();
+  if(!pin) return;
+  const r = await fetch('/api/auth/set', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pin})});
+  const d = await r.json();
+  if(d.ok){ refreshPinStatus(); document.getElementById('setPinInput').value=''; }
+  else { alert(d.error || 'Could not set PIN'); }
+}
+async function clearPin(){
+  if(!confirm('Remove the PIN? Anyone on your WiFi could then control the lights.')) return;
+  await fetch('/api/auth/clear', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+  refreshPinStatus();
+}
 async function scanNew(){
   const list = document.getElementById('addList');
   list.innerHTML = '<div class="empty"><span class="emoji">📡</span>Scanning…</div>';
@@ -2078,6 +2158,7 @@ function copyTrigger(name){
 
 load();
 loadPresets();
+checkAuth();
 
 // click outside modal to close
 document.querySelectorAll('.modal').forEach(m => {
