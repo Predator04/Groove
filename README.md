@@ -8,16 +8,20 @@ PrismLume talks to your bulbs **directly over your local network (UDP)**, so eff
 
 ## ✨ Features
 
-- **34 effects** — chase, wave, twinkle, meteor, breathe, fire, strobe, sparkle, heartbeat, lightning, police, rainbow, countdown, SOS, ocean, candy cane, jack-o'-lantern, fireworks, disco, aurora, sunset, movie, pendulum, Larson scanner, confetti, fireflies, comet, color drip, marquee, snake, thunderstorm, plasma, gradient, solid.
+- **42 effects** — chase, wave, twinkle, meteor, breathe, fire, strobe, gradient, solid, sparkle, heartbeat, lightning, police, rainbow, countdown, SOS, ocean, candy cane, jack-o'-lantern, fireworks, disco, aurora, sunset, movie, pendulum, Larson scanner, confetti, fireflies, comet, color drip, marquee, snake, growing snake, thunderstorm, plasma, snowfall, icicle, fireplace, twinkling star, ornament, and two rainbow-snake variants — synchronized so they travel along your bulb chain.
+- **Party modes** 🎉 — built-in 🎄 Christmas, ❄️ Snow, 🐍 Snakes, and 🎆 Show themes auto-rotate effects and colors every ~20s. **Build your own** in the full-screen Party Builder: pick effects + colors, set the travel order, preview live, and save it as a new one-tap mode. Runs on the server, so it keeps going with the dashboard closed.
 - **Drag-and-drop layout** — arrange bulbs on a canvas to match their real positions; effects travel along the chain.
-- **Click-to-link ordering** — physically jumbled? Click bulbs in the order you want effects to run (1→2→3…), and the software does the rest.
-- **Party mode** 🎉 + **Christmas party** 🎄 — auto-rotates random (or Christmas) effects and colors every ~20s. Runs on the **server**, so it keeps going even with the dashboard closed.
+- **Click-to-link ordering** — physically jumbled? Click bulbs in the order you want effects to run (1→2→3…).
 - **Presets** — one-tap saved setups (Christmas, Red/White/Blue, All White…).
-- **Scheduler** — run any effect at a set time.
-- **Dusk-to-dawn** — lights on at sunset, off at sunrise, from your ZIP code.
 - **Scenes + trigger URLs** — save a color setup, recall in one tap, and get a `/trigger/<scene>` URL for Siri Shortcuts, Stream Deck, or a bookmark.
-- **Add / remove / rename lights** — LAN scan or manual device-ID + IP, straight from the dashboard.
+- **Scheduler** — run any effect at a set time (12-hour clock).
+- **Dusk-to-dawn** — lights on at sunset, off at sunrise, from your ZIP code.
+- **Add / remove / rename lights** — LAN scan (with a progress bar) or manual device-ID + IP, straight from the dashboard.
 - **Live color mirroring** — the on-screen bulbs glow in their real current color, live.
+- **Activity log** — every effect, party, and automation action is logged and viewable in-app.
+- **Auto re-discover** — quietly re-scans every 15 minutes and fixes any bulb whose IP changed (DHCP).
+- **PIN protection** — optionally lock the whole app behind a PIN.
+- **Backup / export / import** — download your entire setup as one JSON file and restore it anywhere.
 - **Zero rate limit** — raw LAN UDP control bypasses Govee's cloud throttle entirely.
 
 ---
@@ -113,6 +117,15 @@ http://<your-host>:8813/trigger/<scene-name>
 ```
 
 Use it anywhere that can hit a URL — Siri Shortcuts, Stream Deck, Home Assistant, a cron job, an NFC tag.
+
+## 🤝 Share custom lighting
+
+Your setups are portable — share them with anyone:
+
+- **Whole setup** — open **🎛 Party modes → 🎨 Create mode → 📤 Export** to download your entire setup (layout, scenes, party modes, schedules, colors) as one JSON file. Send that file to someone; they import it with **📥 Import** and their bulbs match yours.
+- **A single party mode** — build a light show in the Party Builder (effects + colors + travel order), tap **💾 Save**, and it becomes a one-tap theme. It's included whenever you export your setup.
+- **A scene** — save a color setup as a **scene**, then share its trigger URL (`http://<host>:8813/trigger/<scene-name>`) or wire it into Siri Shortcuts / Stream Deck.
+- **A picture** — the Party Builder's **📷 Share** downloads a PNG of your layout (with your room photo) to post anywhere.
 
 ## 🔌 API (for other tools)
 
