@@ -223,6 +223,10 @@
   }
   .sw:hover{ transform:scale(1.15); border-color:#fff; }
   .sw.del{ border-style:dashed; opacity:.6; }
+  .wheelbox{ display:flex; align-items:center; gap:6px; }
+  #colorWheel{ width:76px; height:76px; border-radius:50%; cursor:crosshair; border:2px solid rgba(255,255,255,0.3); box-shadow:0 0 12px rgba(0,0,0,0.45); }
+  #wheelSwatch{ width:30px; height:30px; border-radius:8px; border:2px solid rgba(255,255,255,0.6); cursor:grab; background:#fff; box-shadow:0 2px 8px rgba(0,0,0,0.4); }
+  #wheelSwatch:active{ cursor:grabbing; }
 
   /* yard */
   #yard{
@@ -682,8 +686,11 @@
   </select>
 
   <div class="palette" id="palette"></div>
-  <button class="small ghost" onclick="openColorWheel()" data-tip="Pick any color from the wheel">🎨 + color</button>
-  <input type="color" id="colorWheel" onchange="addColor(this.value)" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;" tabindex="-1">
+  <div class="wheelbox">
+    <canvas id="colorWheel" width="76" height="76" title="Pick a color"></canvas>
+    <div id="wheelSwatch" draggable="true" title="Drag this swatch onto a bulb to paint it"></div>
+    <button class="small ghost" onclick="wheelToPalette()" title="Add the selected color to the effect palette" style="padding:3px 8px;">＋</button>
+  </div>
 
   <div class="speed" title="Effect step time">
     <span>Step</span>
@@ -848,7 +855,7 @@
       Drag bulbs to match where they really are. Tap <b>🔗 Set order</b>, then click bulbs in the order you want effects to travel (1→2→3…), then tap <b>Done</b>. Effects and chases follow this order.</div>
 
     <div class="help-sec"><b>3 · Choose colors</b><br>
-      The palette is your color set — every effect uses it. Tap <b>+ color</b> to pick any color from the wheel, tap a swatch to delete it.</div>
+      Pick any color on the wheel, then <b>drag the swatch onto a bulb</b> to paint it. Tap <b>＋</b> to add the color to the effect palette; tap a swatch to remove it.</div>
 
     <div class="help-sec"><b>4 · Run an effect</b><br>
       Pick one of 42 effects from the dropdown, set the <b>Step</b> speed slider, tap <b>Start</b>. Tap <b>Stop</b> to end it. The bulbs on the canvas glow in their real current color.</div>
@@ -974,6 +981,12 @@ function renderBulbs(){
     el.addEventListener('pointerdown', e => startDrag(e, b, el));
     el.addEventListener('click', e => { if(!el.classList.contains('dragging')){ if(linkMode) linkBulb(b); else select(b); } });
     el.addEventListener('contextmenu', e => showCtx(e, b));
+    el.addEventListener('dragover', e => e.preventDefault());
+    el.addEventListener('drop', e => {
+      e.preventDefault();
+      const parts = e.dataTransfer.getData('text/plain').split(',').map(Number);
+      if(parts.length === 3 && parts.every(Number.isFinite)) paintBulb(b, parts);
+    });
     layer.appendChild(el);
     b.el = el;
   });
@@ -1309,15 +1322,77 @@ function hexToRgb(hex){
   const m = String(hex).replace('#','');
   return [parseInt(m.slice(0,2),16), parseInt(m.slice(2,4),16), parseInt(m.slice(4,6),16)];
 }
-function openColorWheel(){
-  const w = document.getElementById('colorWheel');
-  if(w){ w.value = '#000000'; w.click(); }
+// ---- color wheel ----
+let wheelColor = [255,255,255];
+function hsvToRgb(h,s,v){
+  const i = Math.floor(h*6), f = h*6-i, p=v*(1-s), q=v*(1-f*s), t=v*(1-(1-f)*s);
+  let r,g,b;
+  switch(i%6){ case 0: r=v;g=t;b=p; break; case 1: r=q;g=v;b=p; break; case 2: r=p;g=v;b=t; break; case 3: r=p;g=q;b=v; break; case 4: r=t;g=p;b=v; break; default: r=v;g=p;b=q; }
+  return [Math.round(r*255), Math.round(g*255), Math.round(b*255)];
 }
-function addColor(hex){
-  const c = hex ? hexToRgb(hex) : [Math.floor(Math.random()*255), Math.floor(Math.random()*255), Math.floor(Math.random()*255)];
-  palette.push(c);
+function drawWheel(){
+  const c = document.getElementById('colorWheel');
+  if(!c) return;
+  const ctx = c.getContext('2d');
+  const w = c.width, h = c.height, cx = w/2, cy = h/2, R = Math.min(w,h)/2 - 1;
+  const img = ctx.createImageData(w, h);
+  for(let y=0; y<h; y++){
+    for(let x=0; x<w; x++){
+      const dx = x-cx, dy = y-cy, r = Math.sqrt(dx*dx+dy*dy);
+      const idx = (y*w+x)*4;
+      if(r > R){ img.data[idx+3]=0; continue; }
+      const hue = (Math.atan2(dy,dx) + Math.PI) / (2*Math.PI);
+      const sat = Math.min(1, r/R);
+      const rgb = hsvToRgb(hue, sat, 1);
+      img.data[idx]=rgb[0]; img.data[idx+1]=rgb[1]; img.data[idx+2]=rgb[2]; img.data[idx+3]=255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+function wheelColorFromEvent(e){
+  const c = document.getElementById('colorWheel');
+  const rect = c.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (c.width / rect.width);
+  const y = (e.clientY - rect.top) * (c.height / rect.height);
+  const cx = c.width/2, cy = c.height/2, R = Math.min(c.width,c.height)/2 - 1;
+  const dx = x-cx, dy = y-cy, r = Math.sqrt(dx*dx+dy*dy);
+  if(r > R) return null;
+  const hue = (Math.atan2(dy,dx) + Math.PI) / (2*Math.PI);
+  const sat = Math.min(1, r/R);
+  return hsvToRgb(hue, sat, 1);
+}
+function onWheelPick(e){
+  const rgb = wheelColorFromEvent(e);
+  if(!rgb) return;
+  wheelColor = rgb;
+  const sw = document.getElementById('wheelSwatch');
+  if(sw) sw.style.background = css(rgb);
+  if(selected){ selected.color = rgb; setBulbColor(selected, rgb); api('/api/lan/control', {ip:selected.ip, cmd:{name:'color', value:{r:rgb[0],g:rgb[1],b:rgb[2]}}}); }
+}
+function paintBulb(b, rgb){
+  b.color = rgb;
+  setBulbColor(b, rgb);
+  api('/api/lan/control', {ip:b.ip, cmd:{name:'color', value:{r:rgb[0],g:rgb[1],b:rgb[2]}}});
+}
+function wheelToPalette(){
+  palette.push(wheelColor.slice());
   renderPalette();
 }
+// wire the wheel + swatch (script runs after the DOM, so the elements exist)
+drawWheel();
+let wheelDragging = false;
+(function(){
+  const _wc = document.getElementById('colorWheel');
+  if(_wc){
+    _wc.addEventListener('pointerdown', e => { wheelDragging = true; try{ _wc.setPointerCapture(e.pointerId); }catch(_){} onWheelPick(e); });
+    _wc.addEventListener('pointermove', e => { if(wheelDragging) onWheelPick(e); });
+    _wc.addEventListener('pointerup', () => { wheelDragging = false; });
+  }
+  const _ws = document.getElementById('wheelSwatch');
+  if(_ws){
+    _ws.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', wheelColor.join(',')); e.dataTransfer.effectAllowed = 'copy'; });
+  }
+})();
 
 // ---- chase ----
 function chaseOrderIps(){

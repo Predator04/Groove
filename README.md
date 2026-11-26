@@ -95,7 +95,8 @@ PrismLume uses your Govee API key to pull friendly bulb names and enable cloud c
 | Add a light | **➕ Add** → **🔍 Scan**, or type Device ID + IP |
 | Arrange bulbs | Drag them on the canvas |
 | Set effect order | **🔗 Set order** → click bulbs 1→2→3… → **Done** |
-| Change the color set | Tap **+ color** to add, tap a swatch to remove |
+| Paint a bulb | Pick a color on the wheel → drag the swatch onto the bulb |
+| Change the color set | Tap **＋** (next to the wheel) to add the color, tap a swatch to remove |
 | Run an effect | Pick from the dropdown → set **Step** speed → **Start** |
 | Stop | **Stop** |
 | Random show | **🎲 Surprise** (once) or **🎉 Party** (continuous) |
