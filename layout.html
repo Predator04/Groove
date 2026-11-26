@@ -682,7 +682,8 @@
   </select>
 
   <div class="palette" id="palette"></div>
-  <button class="small ghost" onclick="addColor()" data-tip="Add another color to the palette">+ color</button>
+  <button class="small ghost" onclick="openColorWheel()" data-tip="Pick any color from the wheel">🎨 + color</button>
+  <input type="color" id="colorWheel" onchange="addColor(this.value)" style="position:absolute;opacity:0;width:1px;height:1px;pointer-events:none;" tabindex="-1">
 
   <div class="speed" title="Effect step time">
     <span>Step</span>
@@ -847,10 +848,10 @@
       Drag bulbs to match where they really are. Tap <b>🔗 Set order</b>, then click bulbs in the order you want effects to travel (1→2→3…), then tap <b>Done</b>. Effects and chases follow this order.</div>
 
     <div class="help-sec"><b>3 · Choose colors</b><br>
-      The palette is your color set — every effect uses it. Tap <b>+ color</b> to add a random color, tap a swatch to delete it.</div>
+      The palette is your color set — every effect uses it. Tap <b>+ color</b> to pick any color from the wheel, tap a swatch to delete it.</div>
 
     <div class="help-sec"><b>4 · Run an effect</b><br>
-      Pick one of 34 effects from the dropdown, set the <b>Step</b> speed slider, tap <b>Start</b>. Tap <b>Stop</b> to end it. The bulbs on the canvas glow in their real current color.</div>
+      Pick one of 42 effects from the dropdown, set the <b>Step</b> speed slider, tap <b>Start</b>. Tap <b>Stop</b> to end it. The bulbs on the canvas glow in their real current color.</div>
 
     <div class="help-sec"><b>🎉 Party · 🎄 Christmas</b><br>
       Auto-rotates random (or Christmas) effects and colors every ~20 seconds. Runs on the server, so it keeps going even if you close this page. Tap the button again to stop.</div>
@@ -1304,8 +1305,17 @@ function renderPalette(){
     p.appendChild(s);
   });
 }
-function addColor(){
-  palette.push([Math.floor(Math.random()*255), Math.floor(Math.random()*255), Math.floor(Math.random()*255)]);
+function hexToRgb(hex){
+  const m = String(hex).replace('#','');
+  return [parseInt(m.slice(0,2),16), parseInt(m.slice(2,4),16), parseInt(m.slice(4,6),16)];
+}
+function openColorWheel(){
+  const w = document.getElementById('colorWheel');
+  if(w){ w.value = '#000000'; w.click(); }
+}
+function addColor(hex){
+  const c = hex ? hexToRgb(hex) : [Math.floor(Math.random()*255), Math.floor(Math.random()*255), Math.floor(Math.random()*255)];
+  palette.push(c);
   renderPalette();
 }
 

@@ -19,7 +19,7 @@ from flask import Flask, jsonify, request, session, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.19.2"
+VERSION = "2.19.3"
 BUILD_DATE = "2026-11-25"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
