@@ -5,6 +5,7 @@ plus a custom timed chase across bulbs.
 """
 import os
 import sys
+import re
 import time
 import json
 import socket
@@ -17,7 +18,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.16.1"
+VERSION = "2.16.2"
 BUILD_DATE = "2026-11-25"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -1191,11 +1192,20 @@ def api_setup():
 
 
 # ---- scheduler (run an effect at a set time) ----
+def _name_key(device_id):
+    """Natural sort key from the bulb's friendly name: ('giant led bulb ', 7) -> numeric-aware."""
+    name = NAMES.get(device_id, device_id)
+    m = re.search(r"(\d+)\s*$", name)
+    if m:
+        return (name[:m.start()].strip().lower(), int(m.group(1)))
+    return (name.strip().lower(), 0)
+
+
 def _ordered_ips():
     entries = []
     for device_id, ip in LAN_MAP.items():
         pos = LAYOUT.get(device_id) or {}
-        entries.append((pos.get("order"), pos.get("x", 0.5), ip))
+        entries.append((pos.get("order"), _name_key(device_id), ip))
     if entries and all(e[0] is not None for e in entries):
         entries.sort(key=lambda e: e[0])
     else:

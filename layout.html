@@ -905,14 +905,24 @@ function renderBulbs(){
   });
   drawLinks();
 }
+function nameKey(b){
+  const m = (b.name || '').match(/(\d+)\s*$/);
+  if(m) return [b.name.slice(0, m.index).trim().toLowerCase(), parseInt(m[1], 10)];
+  return [(b.name || '').trim().toLowerCase(), 0];
+}
+function cmpName(a, b){
+  const ka = nameKey(a), kb = nameKey(b);
+  if(ka[0] !== kb[0]) return ka[0] < kb[0] ? -1 : 1;
+  return ka[1] - kb[1];
+}
 function sorted(){
   if(linkSeq.length > 0){
-    const rest = bulbs.filter(b => !linkSeq.includes(b)).sort((a,b)=>a.x-b.x);
+    const rest = bulbs.filter(b => !linkSeq.includes(b)).sort(cmpName);
     return [...linkSeq, ...rest];
   }
   const arr = [...bulbs];
   if(arr.every(b => b.order != null)) return arr.sort((a,b)=>a.order-b.order);
-  return arr.sort((a,b)=>a.x-b.x);
+  return arr.sort(cmpName);
 }
 function drawLinks(){
   const svg = document.getElementById('links');
