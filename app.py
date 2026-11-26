@@ -19,7 +19,7 @@ from flask import Flask, jsonify, request, session, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.18.0"
+VERSION = "2.19.0"
 BUILD_DATE = "2026-11-25"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -29,7 +29,7 @@ if getattr(sys, "frozen", False):
 else:
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     RES_DIR = BASE_DIR
-BASE_DIR = os.environ.get("GROOVE_DATA_DIR") or BASE_DIR
+BASE_DIR = os.environ.get("PRISMLUME_DATA_DIR") or BASE_DIR
 
 
 def _load_key():
@@ -70,7 +70,7 @@ def eany(e):
 
 
 # ---- PIN gate (optional: set a PIN to protect the app on your LAN) ----
-app.secret_key = os.environ.get("GROOVE_SECRET", "groove-lan-controller")
+app.secret_key = os.environ.get("PRISMLUME_SECRET", "prismlume-lan-controller")
 
 
 def _pin_path():
@@ -841,7 +841,7 @@ def version():
     )
 
 
-GITHUB_REPO = "Predator04/Groove"
+GITHUB_REPO = "Predator04/PrismLume"
 
 
 def _parse_ver(v):
@@ -862,7 +862,7 @@ def api_update():
     try:
         r = requests.get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest",
                          headers={"Accept": "application/vnd.github+json",
-                                  "User-Agent": f"Groove/{VERSION}"}, timeout=8)
+                                  "User-Agent": f"PrismLume/{VERSION}"}, timeout=8)
         if r.status_code != 200:
             return jsonify(current=VERSION, latest=None, update_available=False,
                            error=f"release check unavailable ({r.status_code})")
@@ -1981,7 +1981,7 @@ def _log(msg):
     with _log_lock:
         LOG_BUFFER.append(line)
         try:
-            p = os.path.join(BASE_DIR, "groove.log")
+            p = os.path.join(BASE_DIR, "prismlume.log")
             if os.path.exists(p) and os.path.getsize(p) > 500_000:
                 with open(p, "w") as f:  # reset when it grows large
                     f.write("")
@@ -2002,7 +2002,7 @@ def api_logs_clear():
     with _log_lock:
         LOG_BUFFER.clear()
         try:
-            open(os.path.join(BASE_DIR, "groove.log"), "w").close()
+            open(os.path.join(BASE_DIR, "prismlume.log"), "w").close()
         except Exception:
             pass
     return jsonify(cleared=True)
@@ -2017,11 +2017,11 @@ def _run_tray(port):
     except Exception:
         img = Image.new("RGBA", (64, 64), (107, 140, 255, 255))
     icon = pystray.Icon(
-        "Groove",
+        "PrismLume",
         img,
-        "Groove",
+        "PrismLume",
         menu=pystray.Menu(
-            pystray.MenuItem("Open Groove", lambda icon, item: _open_browser(f"http://localhost:{port}/layout"), default=True),
+            pystray.MenuItem("Open PrismLume", lambda icon, item: _open_browser(f"http://localhost:{port}/layout"), default=True),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Quit", lambda icon, item: (icon.stop(), os._exit(0))),
         ),

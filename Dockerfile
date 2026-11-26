@@ -9,7 +9,7 @@ COPY app.py layout.html setup.html ./
 COPY assets/ assets/
 
 # Persistent config/data lives in /data (mount a volume here)
-ENV GROOVE_DATA_DIR=/data
+ENV PRISMLUME_DATA_DIR=/data
 VOLUME /data
 
 EXPOSE 8813

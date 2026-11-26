@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Groove — Light Layout</title>
+<title>PrismLume — Light Layout</title>
 <style>
   :root{
     color-scheme: dark;
@@ -611,7 +611,7 @@
 <header>
   <div class="brand">
     <div class="brand-mark" aria-hidden="true"></div>
-    <h1>Groove <small>Light Layout</small></h1>
+    <h1>PrismLume <small>Light Layout</small></h1>
   </div>
   <div class="clock" id="clock">--:-- --</div>
   <span class="hint" id="hint">drag bulbs to reorder the chain · effects run along it</span>
@@ -692,11 +692,11 @@
   </select>
   <button class="off" onclick="openPartyEditor()" data-tip="Edit or create your own party themes">🎛 Party setup</button>
   <button class="off" onclick="openSched()" data-tip="Set times for lights to turn on and off">⏰ Schedule</button>
-  <button class="off" onclick="openLogs()" data-tip="See what Groove has been doing">🔍 Logs</button>
+  <button class="off" onclick="openLogs()" data-tip="See what PrismLume has been doing">🔍 Logs</button>
   <button class="off" onclick="openPin()" data-tip="Set a PIN to lock the app">🔒 PIN</button>
   <button class="off" onclick="openScenes()" data-tip="Save and recall lighting scenes">💾 Scenes</button>
   <button class="off" onclick="openAdd()" data-tip="Add a bulb by its IP address">➕ Add</button>
-  <button class="off" onclick="openHelp()" data-tip="How to use Groove">❓ Help</button>
+  <button class="off" onclick="openHelp()" data-tip="How to use PrismLume">❓ Help</button>
 </header>
 
 <div id="yard">
@@ -811,7 +811,7 @@
   <div class="sheet">
     <button class="close-x" onclick="document.getElementById('logsModal').style.display='none'" data-tip="Close">✕</button>
     <h3><span>🔍</span> Activity log</h3>
-    <div class="modal-sub">What Groove has been doing — effects, parties, bulbs, automation.</div>
+    <div class="modal-sub">What PrismLume has been doing — effects, parties, bulbs, automation.</div>
     <div style="display:flex;gap:8px;margin:10px 0;">
       <button class="small" onclick="refreshLogs()" data-tip="Reload the log">Refresh</button>
       <button class="small ghost" onclick="clearLogs()" data-tip="Clear the log">Clear</button>
@@ -822,7 +822,7 @@
 <div id="helpModal" class="modal">
   <div class="sheet">
     <button class="close-x" onclick="document.getElementById('helpModal').style.display='none'" data-tip="Close">✕</button>
-    <h3><span>❓</span> How to use Groove</h3>
+    <h3><span>❓</span> How to use PrismLume</h3>
     <div class="modal-sub">Everything in one place — from first bulb to full light show.</div>
 
     <div class="help-sec"><b>1 · Add your lights</b><br>
@@ -873,7 +873,7 @@
     <button onclick="saveBuiltMode()" data-tip="Save this mode as a party theme">💾 Save</button>
     <button onclick="previewBuiltMode()" data-tip="Preview this mode on your real bulbs">▶ Preview</button>
     <button class="ghost" onclick="toggleSimLink()" data-tip="Tap bulbs in the order effects should travel">🔗 Link</button>
-    <button class="ghost" onclick="toggleSimDelete()" data-tip="Tap a bulb to remove it from Groove">🗑 Delete</button>
+    <button class="ghost" onclick="toggleSimDelete()" data-tip="Tap a bulb to remove it from PrismLume">🗑 Delete</button>
     <button class="ghost" onclick="document.getElementById('bgFile').click()" data-tip="Upload a photo of the room to place bulbs on">🖼 Photo</button>
     <button class="ghost" onclick="removeBackground()" data-tip="Remove the uploaded background photo">🚫 Remove photo</button>
     <button class="ghost" onclick="exportBackup()" data-tip="Download a backup of all your settings">📤 Export</button>
@@ -1101,7 +1101,7 @@ async function scanNew(){
     fresh.forEach(([dev, info]) => {
       const row = document.createElement('div');
       row.className = 'row';
-      row.innerHTML = `<span class="name">${esc(info.name || dev)}</span><code style="font-size:11px;color:var(--ink-dim)">${esc(info.ip)}</code><span style="flex:1"></span><button class="small" onclick="addDevice('${jsEsc(dev)}','${jsEsc(info.ip)}')" data-tip="Add this bulb to Groove">Add</button>`;
+      row.innerHTML = `<span class="name">${esc(info.name || dev)}</span><code style="font-size:11px;color:var(--ink-dim)">${esc(info.ip)}</code><span style="flex:1"></span><button class="small" onclick="addDevice('${jsEsc(dev)}','${jsEsc(info.ip)}')" data-tip="Add this bulb to PrismLume">Add</button>`;
       list.appendChild(row);
     });
   }catch(e){ list.innerHTML = '<div class="empty"><span class="emoji">🔎</span>Scan failed — add manually below.</div>'; }
@@ -1255,7 +1255,7 @@ function showCtx(e, b){
   [
     ['💡 On/Off', () => togglePower(), false],
     ['✏️ Rename', () => { const n = prompt('New name:', b.name); if(n && n.trim()) renameSelected(n.trim()); }, false],
-    ['🗑 Delete', async () => { if(confirm('Remove ' + b.name + ' from Groove?')){ await api('/api/lan/remove', {device_id: b.id}); await load(); } }, true],
+    ['🗑 Delete', async () => { if(confirm('Remove ' + b.name + ' from PrismLume?')){ await api('/api/lan/remove', {device_id: b.id}); await load(); } }, true],
   ].forEach(([label, fn, danger]) => {
     const it = document.createElement('div');
     it.textContent = label;
@@ -1552,7 +1552,7 @@ function toggleSimDelete(){
   deleteMode = !deleteMode;
   simLinkMode = false;
   document.getElementById('simStatus').textContent = deleteMode
-    ? 'Delete mode: tap a bulb to remove it from Groove (it stays in the Govee app).'
+    ? 'Delete mode: tap a bulb to remove it from PrismLume (it stays in the Govee app).'
     : '';
 }
 function simClick(b){
@@ -1616,7 +1616,7 @@ function refreshSimOrd(){
 }
 async function deleteSimBulb(b){
   if(!b.id){ return; }
-  if(!confirm('Remove this light from Groove? It stays in your Govee app.')) return;
+  if(!confirm('Remove this light from PrismLume? It stays in your Govee app.')) return;
   await fetch('/api/lan/remove', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({device_id: b.id})});
   document.getElementById('simStatus').textContent = 'Light removed.';
   await buildSimYard();
@@ -1650,7 +1650,7 @@ function exportBackup(){
   fetch('/api/backup').then(r => r.blob()).then(blob => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'groove-backup.json';
+    a.download = 'prismlume-backup.json';
     a.click();
     URL.revokeObjectURL(a.href);
   });
@@ -1685,7 +1685,7 @@ function shareImage(){
     });
     const a = document.createElement('a');
     a.href = canvas.toDataURL('image/png');
-    a.download = 'groove-layout.png';
+    a.download = 'prismlume-layout.png';
     a.click();
   };
   const bg = yard.style.backgroundImage;
@@ -2178,7 +2178,7 @@ async function checkUpdates(){
     if(d.update_available){
       document.getElementById('updateBanner').style.display = 'block';
       document.getElementById('updateVer').textContent = d.latest;
-      document.getElementById('updateUrl').href = d.url || 'https://github.com/Predator04/Groove/releases';
+      document.getElementById('updateUrl').href = d.url || 'https://github.com/Predator04/PrismLume/releases';
     }
   }catch(e){}
 }

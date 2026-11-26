@@ -1,8 +1,8 @@
-# 🎛 Groove
+# 🎛 PrismLume
 
 **Your Govee lights, actually yours.** A self-hosted controller for Govee H6008 (and other LAN-compatible) smart bulbs — no ads, no cloud lag, no 10-commands-per-minute throttle.
 
-Groove talks to your bulbs **directly over your local network (UDP)**, so effects run instantly and free of Govee's cloud rate limit. One Flask server + a beautiful glassmorphism dashboard is all there is.
+PrismLume talks to your bulbs **directly over your local network (UDP)**, so effects run instantly and free of Govee's cloud rate limit. One Flask server + a beautiful glassmorphism dashboard is all there is.
 
 ---
 
@@ -34,22 +34,22 @@ Groove talks to your bulbs **directly over your local network (UDP)**, so effect
 
 ### Option A — Windows (.exe)
 
-1. Download `Groove.exe` from the latest [GitHub release](https://github.com/Predator04/Groove/releases/latest).
+1. Download `PrismLume.exe` from the latest [GitHub release](https://github.com/Predator04/PrismLume/releases/latest).
 2. Double-click it. A console window opens and prints `Running on http://0.0.0.0:8813`.
 3. Open **http://localhost:8813/setup** in a browser.
 
 ### Option B — Docker (Synology NAS / any Linux)
 
 ```bash
-docker run -d --name groove \
+docker run -d --name prismlume \
   --network host \
-  -v /path/to/groove-data:/data \
-  ghcr.io/predator04/groove:latest
+  -v /path/to/prismlume-data:/data \
+  ghcr.io/predator04/prismlume:latest
 ```
 
 Then open `http://<your-nas-ip>:8813/setup`.
 
-> **`--network host` is required** — Groove discovers bulbs via UDP broadcast/multicast, which bridged Docker networks block.
+> **`--network host` is required** — PrismLume discovers bulbs via UDP broadcast/multicast, which bridged Docker networks block.
 
 ### Option C — Python (any OS)
 
@@ -62,7 +62,7 @@ python app.py
 
 ## 🔑 Get your Govee API key (free, ~2 minutes)
 
-Groove uses your Govee API key to pull friendly bulb names and enable cloud control. Without it you can still drive bulbs by IP, but names won't auto-populate — so grab the key first.
+PrismLume uses your Govee API key to pull friendly bulb names and enable cloud control. Without it you can still drive bulbs by IP, but names won't auto-populate — so grab the key first.
 
 1. Open the **Govee Home app** on your phone.
 2. Tap your **profile icon** (bottom-right) → **settings gear** (top-right).
@@ -134,15 +134,15 @@ Use it anywhere that can hit a URL — Siri Shortcuts, Stream Deck, Home Assista
 ```powershell
 pip install pyinstaller
 pyinstaller --onefile --add-data "layout.html;." --add-data "setup.html;." `
-  --add-data "assets;assets" --name Groove app.py
+  --add-data "assets;assets" --name PrismLume app.py
 ```
 
-The `.exe` lands in `dist/Groove.exe`. Config (`config.json`, `lan_devices.json`, `names.json`, `layout.json`) is created next to the `.exe` on first run.
+The `.exe` lands in `dist/PrismLume.exe`. Config (`config.json`, `lan_devices.json`, `names.json`, `layout.json`) is created next to the `.exe` on first run.
 
 **Docker image**:
 
 ```bash
-docker build -t groove .
+docker build -t prismlume .
 ```
 
 ---

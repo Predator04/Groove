@@ -23,5 +23,5 @@ dist/
 
 # local data
 data/
-groove.log
+prismlume.log
 *.log

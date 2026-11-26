@@ -16,11 +16,11 @@ jobs:
       - run: pip install -r requirements.txt pyinstaller
       - name: Build exe
         run: |
-          pyinstaller --onefile --add-data "layout.html;." --add-data "setup.html;." --add-data "assets;assets" --name Groove app.py
+          pyinstaller --onefile --add-data "layout.html;." --add-data "setup.html;." --add-data "assets;assets" --name PrismLume app.py
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Groove.exe
+          files: dist/PrismLume.exe
 
   docker:
     runs-on: ubuntu-latest
