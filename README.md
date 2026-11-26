@@ -76,7 +76,7 @@ PrismLume uses your Govee API key to pull friendly bulb names and enable cloud c
 
 1. Open **/setup**.
 2. Paste your **Govee API key** (from the step above).
-3. In the Govee Home app, open each bulb → ⚙️ → **LAN Control** → on.
+3. **Turn on LAN Control for each bulb** — in the Govee Home app, open the bulb → **⚙️ (top-right)** → scroll down → **LAN Control** → **enable**. ⚠️ It's **OFF by default**; PrismLume can't find or control a bulb until it's on.
 4. Tap **Scan** to discover bulbs on your network, or add them manually.
 5. Tap **Save & open dashboard**.
 
