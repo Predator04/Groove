@@ -18,7 +18,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.16.4"
+VERSION = "2.16.5"
 BUILD_DATE = "2026-11-25"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -883,6 +883,7 @@ def api_effect_start():
         return jsonify(error=f"unknown effect: {effect}"), 400
     if not isinstance(colors, list) or not colors:
         return jsonify(error="colors must be a non-empty list"), 400
+    _party_stop.set()  # a manual effect takes over from the party loop
     start_effect(ips, effect, colors, step_ms)
     return jsonify(started=True, effect=effect, ips=len(ips), step_ms=step_ms)
 
@@ -957,6 +958,7 @@ def api_party_start():
     theme = body.get("theme", "random")
     if not theme or theme not in PARTY_THEMES:
         return jsonify(error=f"unknown theme: {theme}"), 400
+    _effect_stop.set()  # a manual party takes over from the running effect
     _start_party(theme)
     return jsonify(started=True, theme=theme)
 
