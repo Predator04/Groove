@@ -18,7 +18,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.17.0"
+VERSION = "2.17.1"
 BUILD_DATE = "2026-11-25"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -1115,6 +1115,11 @@ def api_party_themes_save():
     if not isinstance(order, list):
         return jsonify(error="order must be a list"), 400
     PARTY_THEMES[name] = {"effects": effects, "palettes": palettes, "order": order}
+    interval = body.get("interval")
+    if interval is not None:
+        if not isinstance(interval, (int, float)):
+            return jsonify(error="interval must be a number"), 400
+        PARTY_THEMES[name]["interval"] = int(interval)
     _write_json(os.path.join(BASE_DIR, "party.json"), PARTY_THEMES)
     return jsonify(saved=True, name=name)
 
@@ -1258,6 +1263,8 @@ DEFAULT_PRESETS = {
 }
 PRESETS = _load_json("presets.json", DEFAULT_PRESETS)
 PARTY_THEMES = _load_json("party.json", DEFAULT_PARTY_THEMES)
+for _k, _v in DEFAULT_PARTY_THEMES.items():
+    PARTY_THEMES.setdefault(_k, _v)  # new default themes always appear, even with a saved party.json
 
 
 @app.route("/api/presets")
