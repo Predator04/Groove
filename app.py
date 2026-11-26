@@ -18,7 +18,7 @@ from flask import Flask, jsonify, request, render_template_string
 app = Flask(__name__)
 
 API_BASE = "https://developer-api.govee.com"
-VERSION = "2.16.5"
+VERSION = "2.17.0"
 BUILD_DATE = "2026-11-25"
 
 # config/data dir vs bundled resource dir (PyInstaller onefile + Docker friendly)
@@ -594,6 +594,101 @@ def _run_effect(ip_list, effect, colors, step_ms):
                 length = idx + 1
             _effect_stop.wait(max(step_ms, 120) / 1000.0)
 
+    elif effect == "snowfall":
+        for ip in ip_list: lan_turn(ip, True); lan_brightness(ip, 6)
+        flakes = []
+        while not _effect_stop.is_set():
+            if random.random() < 0.4 and len(flakes) < n:
+                flakes.append(0.0)
+            for i in range(len(flakes)):
+                flakes[i] += random.uniform(0.5, 1.2)
+            flakes = [f for f in flakes if f < n - 0.5]
+            for i, ip in enumerate(ip_list):
+                if any(int(f) == i for f in flakes):
+                    lan_color(ip, colors[0]); lan_brightness(ip, 100)
+                else:
+                    lan_brightness(ip, 6)
+            _effect_stop.wait(max(step_ms, 90) / 1000.0)
+
+    elif effect == "icicle":
+        for ip in ip_list: lan_turn(ip, True); lan_brightness(ip, 5)
+        idx = 0
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                if i <= idx:
+                    lan_color(ip, colors[i % nc]); lan_brightness(ip, 100)
+                else:
+                    lan_brightness(ip, 5)
+            idx = (idx + 1) % n
+            if idx == 0:
+                _effect_stop.wait(0.6)
+            _effect_stop.wait(max(step_ms, 120) / 1000.0)
+
+    elif effect == "fireplace":
+        for ip in ip_list: lan_turn(ip, True)
+        while not _effect_stop.is_set():
+            for ip in ip_list:
+                lan_color(ip, random.choice(colors))
+                lan_brightness(ip, random.randint(35, 100))
+            _effect_stop.wait(max(step_ms, 100) / 1000.0)
+
+    elif effect == "star":
+        import math
+        for ip in ip_list: lan_turn(ip, True)
+        t = 0.0
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                p = (math.sin(t + i * 1.3) + 1) / 2
+                lan_color(ip, colors[0])
+                lan_brightness(ip, max(4, int(20 + 80 * p * random.uniform(0.6, 1.0))))
+            t += 0.25
+            _effect_stop.wait(max(step_ms, 90) / 1000.0)
+
+    elif effect == "ornament":
+        for ip in ip_list: lan_turn(ip, True)
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                lan_color(ip, colors[i % nc]); lan_brightness(ip, 100)
+            _effect_stop.wait(max(step_ms, 250) / 1000.0)
+            if random.random() < 0.7:
+                i = random.randrange(n)
+                lan_color(ip_list[i], [255, 255, 255]); lan_brightness(ip_list[i], 100)
+                _effect_stop.wait(0.12)
+                lan_color(ip_list[i], colors[i % nc])
+
+    elif effect == "snake2":
+        for ip in ip_list: lan_turn(ip, True); lan_brightness(ip, 4)
+        h1 = 0; h2 = n - 1
+        length = 4
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                d1 = (i - h1) % n
+                d2 = (h2 - i) % n
+                if d1 < length:
+                    lan_color(ip, colors[0]); lan_brightness(ip, max(8, 100 - d1 * 22))
+                elif d2 < length:
+                    lan_color(ip, colors[1 % nc]); lan_brightness(ip, max(8, 100 - d2 * 22))
+                else:
+                    lan_brightness(ip, 4)
+            h1 = (h1 + 1) % n
+            h2 = (h2 - 1) % n
+            _effect_stop.wait(max(step_ms, 110) / 1000.0)
+
+    elif effect == "rainbowsnake":
+        for ip in ip_list: lan_turn(ip, True); lan_brightness(ip, 4)
+        idx = 0
+        length = max(4, n // 3)
+        while not _effect_stop.is_set():
+            for i, ip in enumerate(ip_list):
+                dist = (idx - i) % n
+                if dist < length:
+                    lan_color(ip, _hsv(dist / max(length, 1)))
+                    lan_brightness(ip, max(8, 100 - dist * 14))
+                else:
+                    lan_brightness(ip, 4)
+            idx = (idx + 1) % n
+            _effect_stop.wait(max(step_ms, 100) / 1000.0)
+
     elif effect == "thunderstorm":
         base = (colors or [[20, 40, 90]])[0]
         for ip in ip_list: lan_turn(ip, True); lan_color(ip, base); lan_brightness(ip, 20)
@@ -857,7 +952,9 @@ EFFECTS = ["chase", "wave", "twinkle", "meteor", "breathe", "fire", "strobe",
           "rainbow", "countdown", "sos", "ocean", "candycane", "jacko",
           "fireworks", "disco", "aurora", "sunset", "movie",
           "pendulum", "larson", "confetti", "fireflies", "comet", "drip",
-          "marquee", "snake", "snakegrow", "thunderstorm", "plasma"]
+          "marquee", "snake", "snakegrow", "thunderstorm", "plasma",
+          "snowfall", "icicle", "fireplace", "star", "ornament",
+          "snake2", "rainbowsnake"]
 
 
 def start_effect(ips, effect, colors, step_ms):
@@ -915,6 +1012,30 @@ DEFAULT_PARTY_THEMES = {
                     "strobe", "comet", "snake", "plasma", "fireflies", "larson", "drip", "pendulum", "marquee"],
         "palettes": [],
     },
+    "snow": {
+        "effects": ["snowfall", "icicle", "wave", "breathe", "twinkle", "star", "aurora"],
+        "palettes": [
+            [[255, 255, 255], [180, 220, 255]],
+            [[200, 230, 255], [255, 255, 255]],
+            [[120, 180, 255], [220, 240, 255], [255, 255, 255]],
+        ],
+        "interval": 15,
+    },
+    "snakes": {
+        "effects": ["snake", "snakegrow", "snake2", "rainbowsnake", "chase", "comet"],
+        "palettes": [
+            [[200, 0, 0]],
+            [[0, 200, 0]],
+            [[200, 0, 0], [0, 180, 0], [255, 255, 255]],
+        ],
+        "interval": 15,
+    },
+    "show": {
+        "effects": ["chase", "snakegrow", "fire", "strobe", "disco", "fireworks", "aurora", "rainbow",
+                    "plasma", "meteor", "snake2", "rainbowsnake", "snowfall"],
+        "palettes": [],
+        "interval": 9,
+    },
 }
 
 
@@ -922,7 +1043,7 @@ def _party_loop(theme):
     cfg = PARTY_THEMES.get(theme) or PARTY_THEMES.get("random") or {"effects": [], "palettes": []}
     effects = cfg.get("effects") or ["chase", "wave", "twinkle", "disco", "rainbow", "strobe", "fireflies"]
     palettes = cfg.get("palettes") or []
-    interval = 18 if theme == "christmas" else 22
+    interval = cfg.get("interval") or (18 if theme == "christmas" else 22)
     step_lo = 250 if theme == "christmas" else 150
     step_hi = 650 if theme == "christmas" else 550
     while not _party_stop.is_set():

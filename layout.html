@@ -651,6 +651,13 @@
     <option value="marquee">🎪 Marquee</option>
     <option value="snake">🐍 Snake</option>
     <option value="snakegrow">🐍 Snake Grow</option>
+    <option value="snowfall">❄️ Snowfall</option>
+    <option value="icicle">🧊 Icicle</option>
+    <option value="fireplace">🔥 Fireplace</option>
+    <option value="star">⭐ Star</option>
+    <option value="ornament">🎄 Ornament</option>
+    <option value="snake2">🐍 Two Snakes</option>
+    <option value="rainbowsnake">🌈 Rainbow Snake</option>
     <option value="thunderstorm">⛈ Thunderstorm</option>
     <option value="plasma">🌊 Plasma</option>
   </select>
@@ -675,6 +682,14 @@
   <button class="off" onclick="surprise()" data-tip="Pick a random effect and start it">🎲 Surprise</button>
   <button class="off" id="partyBtn" onclick="toggleParty()" data-tip="Start the party mode loop">🎉 Party</button>
   <button class="off" id="xmasBtn" onclick="toggleChristmas()" data-tip="Start the Christmas theme">🎄 Christmas</button>
+  <select id="themeSel" onchange="if(this.value){ startParty(this.value); this.value=''; }" data-tip="Watch a theme — it cycles through its effects automatically">
+    <option value="">🎭 Theme…</option>
+    <option value="christmas">🎄 Christmas</option>
+    <option value="snow">❄️ Snow</option>
+    <option value="snakes">🐍 Snakes</option>
+    <option value="show">🎆 Show</option>
+    <option value="random">🎉 Random</option>
+  </select>
   <button class="off" onclick="openPartyEditor()" data-tip="Edit or create your own party themes">🎛 Party setup</button>
   <button class="off" onclick="openSched()" data-tip="Set times for lights to turn on and off">⏰ Schedule</button>
   <button class="off" onclick="openScenes()" data-tip="Save and recall lighting scenes">💾 Scenes</button>
@@ -718,6 +733,9 @@
           <option value="">Use selected effect</option>
           <option value="christmas">🎄 Christmas</option>
           <option value="random">🎉 Random</option>
+          <option value="snow">❄️ Snow</option>
+          <option value="snakes">🐍 Snakes</option>
+          <option value="show">🎆 Show</option>
         </select>
         <button id="duskBtn" class="small off" onclick="toggleDusk()" data-tip="Turn sunset/sunrise automation on or off">Enable</button>
       </div>
